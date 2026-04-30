@@ -1,0 +1,626 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}APPO CRM | Owen Prospection{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --appo-blue: #133A7F;
+        --appo-light: #F4F3F1;
+        --appo-dark: #0A1F45;
+    }
+
+    /* Layout ajustes para el Header de APPO */
+    .crm-wrapper {
+        height: calc(100vh - 80px); /* Ajuste por el header fixed-top */
+        background-color: var(--appo-light);
+        display: flex;
+        overflow: hidden;
+    }
+
+    .glass-sidebar {
+        background: #fff;
+        border-right: 1px solid #e2e8f0;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.02);
+    }
+
+    .lead-item {
+        border-bottom: 1px solid #f1f5f9;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .lead-item:hover {
+        background-color: #f8fafc;
+        border-left: 4px solid var(--appo-blue);
+    }
+
+    .lead-item.active {
+        background-color: #f1f5f9;
+        border-left: 4px solid var(--appo-blue);
+    }
+
+    .whatsapp-green { color: #25D366; }
+
+    .chat-area {
+        background-color: #e5e7eb;
+        background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+        background-blend-mode: overlay;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+    /* Estilo para el QR Modal */
+    .modal-qr {
+        background: rgba(10, 31, 69, 0.9);
+        backdrop-filter: blur(4px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Banner dinámico de estado WhatsApp (se actualiza sin recargar) -->
+<div id="wa-status-banner" style="padding:8px 20px;font-size:13px;display:flex;align-items:center;justify-content:space-between;
+  {% if whatsapp_connected %}background:#EAF3DE;border-bottom:1px solid #97C459;color:#27500A;
+  {% else %}background:#FAEEDA;border-bottom:1px solid #EF9F27;color:#633806;{% endif %}">
+  <span style="display:flex;align-items:center;gap:8px;">
+    <span id="wa-dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;
+      background:{% if whatsapp_connected %}#639922{% else %}#BA7517{% endif %};"></span>
+    <span id="wa-status-text">
+      {% if whatsapp_connected %}WhatsApp conectado - {{ instance_name }}
+      {% else %}WhatsApp desconectado - los chats no se actualizarán en tiempo real{% endif %}
+    </span>
+  </span>
+  <button id="wa-reconectar-btn" onclick="openQRModal()" {% if whatsapp_connected %}style="display:none"{% endif %}
+    style="background:#BA7517;color:#fff;padding:4px 14px;border-radius:6px;border:none;font-size:12px;font-weight:500;cursor:pointer;">
+    Reconectar con QR
+  </button>
+</div>
+<div class="crm-wrapper">
+    <!-- Sidebar: Leads List -->
+    <div class="w-25 d-flex flex-col glass-sidebar flex-column">
+        <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white">
+            <h5 class="mb-0 fw-bold" style="color: var(--appo-blue);">
+                <i class="fab fa-whatsapp me-2"></i> Chats de WhatsApp
+            </h5>
+            <span id="chats-count" class="badge bg-primary rounded-pill">0</span>
+        </div>
+
+        <div class="p-2">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" class="form-control border-start-0" placeholder="Buscar negocio...">
+            </div>
+        </div>
+
+        <div class="flex-grow-1 overflow-auto custom-scrollbar">
+            <div id="chats-list">
+                <!-- Los chats se cargarán aquí via AJAX -->
+                <div class="text-center py-5 text-muted">
+                    <div class="spinner-border spinner-border-sm mb-2" role="status"></div>
+                    <p class="small mb-0">Cargando chats...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content: Chat View -->
+    <div class="flex-grow-1 d-flex flex-column chat-area">
+        <!-- Chat Header -->
+        <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center" style="height: 64px;">
+            <div id="active-lead-header">
+                <span class="text-muted small">Selecciona un prospecto para iniciar</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                {% if whatsapp_connected %}
+                <span id="connection-status" class="badge bg-success rounded-pill d-flex align-items-center">
+                    <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> Conectado
+                </span>
+                {% else %}
+                <span id="connection-status" class="badge bg-danger rounded-pill d-flex align-items-center">
+                    <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> Desconectado
+                </span>
+                {% endif %}
+                <button id="btn-conectar" onclick="openQRModal()" class="btn btn-sm btn-outline-success rounded-pill px-3">
+                    <i class="fab fa-whatsapp me-1"></i> Vincular Owen
+                </button>
+            </div>
+        </div>
+
+        <!-- Messages Area -->
+        <div id="chat-messages" class="flex-grow-1 p-4 overflow-auto d-flex flex-column justify-content-center align-items-center">
+            <div class="text-center bg-white p-5 rounded-4 shadow-sm" style="max-width: 400px;">
+                <div class="mb-4">
+                    <img src="{% static 'images/ui/appo-logo.png' %}" alt="APPO" style="height: 50px;">
+                </div>
+                <h4 class="fw-bold" style="color: var(--appo-blue);">Owen CRM Prospection</h4>
+                <p class="text-muted small">Automatiza la captación de barberías y spas. Conecta tu WhatsApp para empezar a enviar mensajes estratégicos.</p>
+                <hr>
+                <div class="d-flex justify-content-center gap-3 mt-3">
+                    <div class="text-center">
+                        <div class="h5 mb-0 fw-bold">135</div>
+                        <div class="text-muted small">Leads</div>
+                    </div>
+                    <div class="vr"></div>
+                    <div class="text-center">
+                        <div class="h5 mb-0 fw-bold">0</div>
+                        <div class="text-muted small">Enviados</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area (Hidden initially) -->
+        <div id="chat-input-area" class="p-3 bg-white border-top d-none">
+            <div class="d-flex gap-2">
+                <button class="btn btn-light text-muted"><i class="fas fa-paperclip"></i></button>
+                <input id="msg-input" type="text" class="form-control rounded-pill px-4" placeholder="Escribe un mensaje de Owen...">
+                <button id="btn-send" class="btn btn-primary rounded-circle" style="width: 45px; height: 45px;"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QR Modal -->
+<div class="modal fade" id="qrModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-5">
+                <h4 class="fw-bold mb-3" style="color: var(--appo-blue);">Vincular WhatsApp</h4>
+                <p class="text-muted small mb-4">Escanea el código con tu celular de APPO para que Owen empiece a gestionar los leads.</p>
+
+                <div id="qr-container" class="bg-light p-3 rounded-3 d-inline-block border">
+                    <div class="spinner-border text-primary m-5" role="status"></div>
+                </div>
+
+                <div class="mt-4 pt-3 border-top">
+                    <p class="mb-0 small text-muted"><i class="fas fa-shield-alt me-1"></i> Conexión segura vía Evolution API</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const qrModal = new bootstrap.Modal(document.getElementById('qrModal'));
+    let currentChatId = null;
+    let currentPhone = null;
+    let crmSocket = null;
+
+    // ── WebSocket CRM ─────────────────────────────────────────────────────
+    function connectCRMSocket() {
+        const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        crmSocket = new WebSocket(`${proto}://${window.location.host}/ws/crm/`);
+
+        crmSocket.onopen = () => console.log('[CRM WS] Conectado');
+
+        crmSocket.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            if (data.type === 'init') {
+                renderChatList(data.chats);
+            } else if (data.type === 'chat_message') {
+                handleNewMessage(data);
+            } else if (data.type === 'messages_history') {
+                renderMessages(data.messages);
+            } else if (data.type === 'chat_list_update') {
+                renderChatList(data.chats);
+            }
+        };
+
+        crmSocket.onclose = () => {
+            console.log('[CRM WS] Desconectado. Reconectando en 3s...');
+            setTimeout(connectCRMSocket, 3000);
+        };
+
+        crmSocket.onerror = (err) => console.error('[CRM WS] Error:', err);
+    }
+
+    function handleNewMessage(data) {
+        // Actualizar badge en lista de chats
+        const item = document.querySelector(`.lead-item[data-chat-id="${data.chat_id}"]`);
+        if (item) {
+            const preview = item.querySelector('.chat-preview');
+            if (preview) preview.textContent = data.text.substring(0, 40);
+            // Notificación visual si no es el chat activo
+            if (data.chat_id !== currentChatId && !data.from_me) {
+                const badge = item.querySelector('.unread-badge') || createBadge(item);
+                const count = parseInt(badge.textContent || '0') + 1;
+                badge.textContent = count;
+                badge.classList.remove('d-none');
+            }
+            // Mover al tope
+            const list = document.getElementById('chats-list');
+            list.prepend(item);
+        } else {
+            // Chat nuevo: recargar lista via WebSocket
+            if (crmSocket && crmSocket.readyState === WebSocket.OPEN) {
+                crmSocket.send(JSON.stringify({type: 'get_messages', chat_id: data.chat_id}));
+            }
+            loadChats();
+        }
+        // Si el chat está abierto, agregar mensaje al área
+        if (data.chat_id === currentChatId) {
+            appendMessage(data);
+        }
+    }
+
+    function createBadge(item) {
+        const badge = document.createElement('span');
+        badge.className = 'unread-badge badge bg-success rounded-pill';
+        badge.style.fontSize = '0.6rem';
+        item.querySelector('.d-flex')?.appendChild(badge);
+        return badge;
+    }
+
+    function appendMessage(data) {
+        const area = document.getElementById('chat-messages');
+        const time = new Date(data.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        const alignClass = data.from_me ? 'align-self-end' : 'align-self-start';
+        const bgClass = data.from_me ? 'bg-primary text-white' : 'bg-white';
+        const borderClass = data.from_me ? '' : 'border-start border-primary border-4';
+        const el = document.createElement('div');
+        el.className = `${alignClass} p-3 rounded-3 shadow-sm ${bgClass} ${borderClass}`;
+        el.style.maxWidth = '80%';
+        el.innerHTML = `<p class="mb-0 small">${data.text}</p><div class="text-end mt-1"><small class="opacity-75">${time}</small></div>`;
+        // Si el área tiene el placeholder, limpiarlo
+        if (area.querySelector('.spinner-border') || area.querySelector('.fa-comment-slash')) {
+            area.innerHTML = '<div class="d-flex flex-column gap-3" id="messages-container"></div>';
+        }
+        const container = area.querySelector('#messages-container') || area;
+        container.appendChild(el);
+        area.scrollTop = area.scrollHeight;
+    }
+
+    // ── Enviar mensaje desde panel ────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+        updateConnectionStatus();
+        // Polling de estado cada 10s para detectar desconexiones
+        setInterval(updateConnectionStatus, 10000);
+        connectCRMSocket();
+
+        const input = document.getElementById('msg-input');
+        const btnSend = document.getElementById('btn-send');
+
+        function sendMessage() {
+            const text = input.value.trim();
+            if (!text || !currentChatId || !currentPhone) return;
+            if (crmSocket && crmSocket.readyState === WebSocket.OPEN) {
+                crmSocket.send(JSON.stringify({
+                    type: 'send_message',
+                    chat_id: currentChatId,
+                    phone: currentPhone,
+                    text: text
+                }));
+                input.value = '';
+            }
+        }
+
+        btnSend.addEventListener('click', sendMessage);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+    });
+
+    // Actualizar estado de conexión (badge sidebar + banner top)
+    async function updateConnectionStatus() {
+        try {
+            const response = await fetch('{% url "leads_admin:estado" %}', {credentials: 'same-origin'});
+            const data = await response.json();
+            const statusBadge = document.getElementById('connection-status');
+            const btnConectar = document.getElementById('btn-conectar');
+            const banner = document.getElementById('wa-status-banner');
+            const dot = document.getElementById('wa-dot');
+            const statusText = document.getElementById('wa-status-text');
+            const btnReconectar = document.getElementById('wa-reconectar-btn');
+
+            if (data.conectado) {
+                // Sidebar badge
+                statusBadge.className = 'badge bg-success rounded-pill d-flex align-items-center';
+                statusBadge.innerHTML = '<i class="fas fa-circle me-1" style="font-size:0.5rem"></i> Conectado';
+                btnConectar.classList.add('d-none');
+                // Banner top
+                banner.style.background = '#EAF3DE';
+                banner.style.borderBottom = '1px solid #97C459';
+                banner.style.color = '#27500A';
+                dot.style.background = '#639922';
+                statusText.textContent = 'WhatsApp conectado — APPO_CRM';
+                btnReconectar.style.display = 'none';
+            } else {
+                // Sidebar badge
+                statusBadge.className = 'badge bg-danger rounded-pill d-flex align-items-center';
+                statusBadge.innerHTML = '<i class="fas fa-circle me-1" style="font-size:0.5rem"></i> Desconectado';
+                btnConectar.classList.remove('d-none');
+                // Banner top
+                banner.style.background = '#FAEEDA';
+                banner.style.borderBottom = '1px solid #EF9F27';
+                banner.style.color = '#633806';
+                dot.style.background = '#BA7517';
+                statusText.textContent = '⚠️ WhatsApp desconectado — el bot no responderá hasta reconectar';
+                btnReconectar.style.display = 'block';
+                // Auto-abrir modal QR si se acaba de detectar la desconexión
+                if (!window._wasDisconnected) {
+                    window._wasDisconnected = true;
+                    console.warn('[CRM] WhatsApp desconectado detectado');
+                }
+            }
+            if (data.conectado) window._wasDisconnected = false;
+        } catch (err) {
+            console.error('Error actualizando estado:', err);
+        }
+    }
+
+    // Cargar lista de chats
+    // renderChatList: acepta datos del WebSocket (formato nuevo) o HTTP (formato legado)
+    function renderChatList(chats) {
+        const chatsList = document.getElementById('chats-list');
+        document.getElementById('chats-count').textContent = chats.length;
+        if (!chats.length) {
+            chatsList.innerHTML = `<div class="text-center py-5 text-muted"><i class="fab fa-whatsapp mb-2"></i><p class="small mb-0">No hay chats aún</p></div>`;
+            return;
+        }
+        let html = '';
+        chats.forEach(chat => {
+            // Normalizar campos (WS usa chat_id/lead_name/last_message/timestamp; HTTP usa id/name)
+            const chatId = chat.chat_id || chat.id || '';
+            const rawPhone = chat.phone || chatId.replace(/@s\.whatsapp\.net|@lid/g,'');
+            // Formatear número: limpiar prefijos internos
+            const phone = rawPhone.startsWith('lid_') ? rawPhone.replace('lid_','') : rawPhone;
+            // Nombre: siempre mostrar número de teléfono (con nombre del lead si existe)
+            const leadName = chat.lead_name || chat.name || '';
+            const name = leadName && leadName !== phone && !leadName.startsWith('Cliente WhatsApp')
+                ? `${leadName} (${phone})` : phone;
+            const lastMsg = chat.last_message || (chat.last_message_obj ? (chat.last_message_obj.text || '') : '');
+            const ts = chat.timestamp ? new Date(chat.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+            const unread = chat.unread_count || 0;
+            html += `
+            <div class="lead-item p-3" data-chat-id="${chatId}" data-phone="${phone}"
+                 onclick="selectChat('${chatId}', '${name.replace(/'/g,"\\'")}'  , '${phone}')">
+                <div class="d-flex justify-content-between align-items-start">
+                    <span class="fw-semibold text-dark" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
+                    <small class="text-muted" style="font-size:0.7rem">${ts}</small>
+                </div>
+                <div class="d-flex align-items-center mt-1 justify-content-between">
+                    <small class="text-muted chat-preview" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${String(lastMsg).substring(0,40)}</small>
+                    ${unread > 0 ? `<span class="unread-badge badge bg-success rounded-pill" style="font-size:0.6rem">${unread}</span>` : '<span class="unread-badge badge bg-success rounded-pill d-none">0</span>'}
+                </div>
+            </div>`;
+        });
+        chatsList.innerHTML = html;
+    }
+
+    async function loadChats() {
+        const chatsList = document.getElementById('chats-list');
+        // Si el WebSocket ya está conectado, los chats llegan via 'init'. Solo hacer HTTP como fallback.
+        if (crmSocket && crmSocket.readyState === WebSocket.OPEN) return;
+        chatsList.innerHTML = `<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm mb-2" role="status"></div><p class="small mb-0">Cargando chats...</p></div>`;
+        try {
+            const response = await fetch('{% url "leads_admin:chats" %}', {credentials: 'same-origin'});
+            const data = await response.json();
+            renderChatList(data.chats || []);
+        } catch (err) {
+            chatsList.innerHTML = `<div class="text-center py-5 text-muted"><p class="small mb-0">Error: ${err.message}</p></div>`;
+        }
+    }
+
+    // Seleccionar un chat y cargar sus mensajes
+    async function selectChat(chatId, chatName, phone) {
+        document.querySelectorAll('.lead-item').forEach(el => el.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+
+        currentChatId = chatId;
+        currentPhone = phone || chatId.replace('@s.whatsapp.net', '');
+
+        // Limpiar badge de no leídos
+        const item = event.currentTarget;
+        const badge = item.querySelector('.unread-badge');
+        if (badge) badge.classList.add('d-none');
+        if (crmSocket && crmSocket.readyState === WebSocket.OPEN) {
+            crmSocket.send(JSON.stringify({type: 'mark_read', chat_id: chatId}));
+        }
+
+        // Actualizar header
+        document.getElementById('active-lead-header').innerHTML = `
+            <div class="d-flex align-items-center">
+                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                    ${chatName.charAt(0)}
+                </div>
+                <div>
+                    <h6 class="mb-0 fw-bold">${chatName}</h6>
+                    <small class="text-success" style="font-size: 0.7rem;"><i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> En línea</small>
+                </div>
+            </div>
+        `;
+
+        // Cargar mensajes
+        if (crmSocket && crmSocket.readyState === WebSocket.OPEN) {
+            crmSocket.send(JSON.stringify({type: 'get_messages', chat_id: chatId}));
+            document.getElementById('chat-messages').innerHTML = `<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm mb-2" role="status"></div><p class="small mb-0">Cargando...</p></div>`;
+        } else {
+            await loadMessages(chatId);
+        }
+        document.getElementById('chat-messages').classList.remove('justify-center', 'items-center', 'text-center');
+        document.getElementById('chat-input-area').classList.remove('d-none');
+    }
+
+    function renderMessages(messages) {
+        const area = document.getElementById('chat-messages');
+        if (!messages.length) {
+            area.innerHTML = `<div class="text-center py-5 text-muted"><i class="fas fa-comment-slash mb-2"></i><p class="small mb-0">Sin mensajes aún</p></div>`;
+            return;
+        }
+        let html = '<div class="d-flex flex-column gap-3" id="messages-container">';
+        messages.forEach(m => {
+            const t = new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+            const align = m.from_me ? 'align-self-end bg-primary text-white' : 'align-self-start bg-white border-start border-primary border-4';
+            html += `<div class="${align} p-3 rounded-3 shadow-sm" style="max-width:80%"><p class="mb-0 small">${m.text}</p><div class="text-end mt-1"><small class="opacity-75">${t}</small></div></div>`;
+        });
+        html += '</div>';
+        area.innerHTML = html;
+        area.scrollTop = area.scrollHeight;
+    }
+
+    // Cargar mensajes de un chat
+    async function loadMessages(chatId) {
+        const messagesArea = document.getElementById('chat-messages');
+        messagesArea.innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <div class="spinner-border spinner-border-sm mb-2" role="status"></div>
+                <p class="small mb-0">Cargando mensajes...</p>
+            </div>
+        `;
+
+        try {
+            const response = await fetch(`{% url "leads_admin:mensajes" "0000" %}`.replace('0000', chatId), {credentials: 'same-origin'});
+            const data = await response.json();
+
+            if (data.error) {
+                messagesArea.innerHTML = `
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-exclamation-triangle mb-2"></i>
+                        <p class="small mb-0">${data.error}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const messages = data.messages || [];
+            if (messages.length === 0) {
+                messagesArea.innerHTML = `
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-comment-slash mb-2"></i>
+                        <p class="small mb-0">No hay mensajes aún</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div class="flex-grow-1 w-100 d-flex flex-column">
+                    <div class="text-center my-4">
+                        <span class="badge bg-light text-muted border px-3 py-2 rounded-pill shadow-sm" style="font-size: 0.7rem;">CONVERSACIÓN DE WHATSAPP</span>
+                    </div>
+                    <div class="d-flex flex-column gap-3">
+            `;
+
+            messages.forEach(msg => {
+                const time = new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const alignClass = msg.from_me ? 'align-self-end' : 'align-self-start';
+                const bgClass = msg.from_me ? 'bg-primary text-white' : 'bg-white';
+                const borderClass = msg.from_me ? '' : 'border-start border-primary border-4';
+
+                html += `
+                        <div class="${alignClass} p-3 rounded-3 shadow-sm ${bgClass} ${borderClass}" style="max-width: 80%;">
+                            <p class="mb-0 small">${msg.text}</p>
+                            <div class="text-end mt-1">
+                                <small class="opacity-75">${time}</small>
+                            </div>
+                        </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+            messagesArea.innerHTML = html;
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        } catch (err) {
+            messagesArea.innerHTML = `
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-exclamation-triangle mb-2"></i>
+                    <p class="small mb-0">Error cargando mensajes: ${err.message}</p>
+                </div>
+            `;
+            console.error('Error cargando mensajes:', err);
+        }
+    }
+
+    let _qrPollInterval = null;
+    let _qrRefreshTimeout = null;
+
+    async function openQRModal() {
+        qrModal.show();
+        const container = document.getElementById('qr-container');
+        container.innerHTML = '<div class="spinner-border text-primary m-5" role="status"></div>';
+
+        // Limpiar cualquier timeout previo
+        if (_qrRefreshTimeout) clearTimeout(_qrRefreshTimeout);
+        if (_qrPollInterval) clearInterval(_qrPollInterval);
+
+        async function cargarQR() {
+            try {
+                const r = await fetch('{% url "leads_admin:qr_proxy" %}', {credentials: 'same-origin'});
+                const data = await r.json();
+
+                if (data.state === 'open') {
+                    container.innerHTML = `
+                        <div class="p-4 text-center">
+                            <i class="fas fa-check-circle text-success fs-1 mb-2"></i>
+                            <p class="mb-0 fw-bold text-dark">¡Conectado!</p>
+                            <p class="text-muted small">Owen ya está activo en WhatsApp</p>
+                        </div>`;
+                    setTimeout(() => { qrModal.hide(); updateConnectionStatus(); }, 2000);
+                    return;
+                }
+
+                if (data.base64 || data.qr || data.qrCode) {
+                    const base64Raw = data.base64 || data.qr || data.qrCode || '';
+                    const imgSrc = base64Raw.startsWith('data:')
+                     ? base64Raw
+                     : `data:image/png;base64,${base64Raw}`;
+                    container.innerHTML = `
+                        <div class="text-center p-2">
+                            <img src="${imgSrc}" alt="QR Code" class="img-fluid" style="max-width:250px; border-radius:8px;">
+                            <p class="text-muted small mt-2">
+                                <i class="fas fa-mobile-alt me-1"></i>
+                                Escanea con el WhatsApp de APPO
+                            </p>
+                            <p class="text-muted" style="font-size:11px;">
+                                <i class="fas fa-sync-alt me-1"></i>
+                                Se refresca automáticamente cada 30 segundos
+                            </p>
+                        </div>`;
+                } else {
+                    container.innerHTML = `
+                        <div class="p-4 text-center">
+                            <p class="text-danger">No se pudo generar el QR.</p>
+                            <button class="btn btn-sm btn-outline-primary" onclick="cargarQR()">
+                                <i class="fas fa-redo me-1"></i>Reintentar
+                            </button>
+                        </div>`;
+                }
+            } catch(e) {
+                container.innerHTML = `
+                    <div class="p-4 text-center">
+                        <p class="text-danger">Error: ${e.message}</p>
+                        <button class="btn btn-sm btn-outline-primary" onclick="cargarQR()">
+                            <i class="fas fa-redo me-1"></i>Reintentar
+                        </button>
+                    </div>`;
+            }
+
+            // Refrescar cada 30 segundos mientras el modal esté abierto
+            _qrRefreshTimeout = setTimeout(cargarQR, 30000);
+        }
+
+        cargarQR();
+    }
+
+    // Limpiar al cerrar el modal
+    document.getElementById('qrModal').addEventListener('hidden.bs.modal', () => {
+        if (_qrRefreshTimeout) clearTimeout(_qrRefreshTimeout);
+        if (_qrPollInterval) clearInterval(_qrPollInterval);
+    });
+
+    async function _fetchQR(container) {
+        // Función mantenida por compatibilidad — ahora usa qr_proxy
+        return cargarQR ? cargarQR() : null;
+    }
+</script>
+{% endblock %}
