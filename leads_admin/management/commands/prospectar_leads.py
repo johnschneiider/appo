@@ -261,9 +261,11 @@ class Command(BaseCommand):
         hace_24h = ahora - timedelta(hours=24)
         hace_72h = ahora - timedelta(hours=72)  # contactado hace +24h = 24+48 = 72h para follow‑up 48h
         
-        # Leads nuevos (sin conversación)
+        # Leads nuevos (sin conversación) - EXCLUIR rechazos permanentes/no contactar
         leads_nuevos = Lead.objects.filter(
             estado__in=['Nuevo', 'pendiente', 'Pendiente'],
+        ).exclude(
+            estado__in=['rechazo_permanente', 'no_contactar', 'no_respondio']
         )
         # Excluir leads que ya tienen conversación
         leads_con_conversacion = LeadConversacion.objects.values_list('lead_id', flat=True)
@@ -337,9 +339,13 @@ class Command(BaseCommand):
         Procesa un lead según su etapa.
         etapas: 'initial', 'followup_24h', 'followup_48h'
         
-        IMPORTANTE: Solo se crea/modifica la conversación en DB DESPUÉS
-        de que el envío por WhatsApp sea exitoso. Esto evita datos corruptos
-        cuando el microservicio está caído.
+        FLUJO MEJORADO (FIX 4a):
+        Para etapa 'initial':
+        1. Crear conversación en BD CON estado 'pendiente_envio' (ATÓMICO, antes de enviar)
+        2. Guardar mensaje assistant como pendiente
+        3. ENVIAR WhatsApp
+        4. Si éxito: cambiar estado a 'contactado'
+        5. Si falla: marcar lead como error, limpiar mensaje pendiente
         """
         self.stdout.write(f"Procesando lead {lead.id}: {lead.nombre_establecimiento} (etapa: {etapa})")
         
@@ -354,9 +360,8 @@ class Command(BaseCommand):
                     logger.warning(f'[DEDUP] Lead {lead.id} ({lead.nombre_establecimiento}) ya tiene saludo - evitando duplicado')
                     return
         
-        # 1. Generar mensaje según etapa (SIN modificar DB todavía)
+        # 1. Generar mensaje según etapa
         if etapa == 'initial':
-            # Usar formatear_saludo (no procesar_lead_inicial que crea conversación)
             partes = formatear_saludo(lead.nombre_establecimiento or 'amigo')
             mensaje_completo = "\n\n".join(partes)
         else:
@@ -366,6 +371,10 @@ class Command(BaseCommand):
                 mensaje = self._generar_mensaje_followup_48h(lead, conversacion, agent)
             else:
                 raise ValueError(f"Etapa desconocida: {etapa}")
+            # Para followup_48h, si el mensaje es None, no enviar nada
+            if etapa == 'followup_48h' and mensaje is None:
+                self.stdout.write(f"  ⏭️ Follow-up 48h: No se genera (máximo 1 follow-up configurado)")
+                return
             partes = [p.strip() for p in mensaje.split('\n\n') if p.strip()]
             mensaje_completo = mensaje
         
@@ -374,70 +383,90 @@ class Command(BaseCommand):
         
         self.stdout.write(f"  Partes generadas: {len(partes)}")
         
-        # 2. Enviar vía WhatsApp (si no es dry-run)
-        if not dry_run:
-            for i, parte in enumerate(partes):
-                exito = self._enviar_whatsapp(lead.telefono, parte)
-                if not exito:
-                    raise ValueError(f"Error al enviar WhatsApp parte {i+1}")
-                self.stdout.write(f"  ✅ Parte {i+1}/{len(partes)} enviada")
-                if i < len(partes) - 1:
-                    delay = random.uniform(2, 4)
-                    time.sleep(delay)
-            # ⚠️ NO enviar imagen aquí — el lead debe responder primero
-            # La imagen se envía solo cuando la conversación llega a precios
-            self._esperar_como_humano()
-        else:
+        if dry_run:
             self.stdout.write(f"  🧪 (Dry-run) Simulando envío de {len(partes)} partes a " + lead.telefono)
             for parte in partes:
                 self.stdout.write(f"    🧪 Parte: {parte[:60]}...")
-        
-        # 3. Registrar en DB SOLO después de envío exitoso
-        if dry_run:
             self.stdout.write(f"  🧪 (Dry-run) No se modifica la base de datos")
             return
         
         ahora = timezone.now()
         
+        # ═══ PASO 2: SAVE ANTES DE ENVIAR (FIX 4a) ═══
         if etapa == 'initial':
-            # Crear conversación y marcarla como contactado
-            conv, created = LeadConversacion.objects.get_or_create(
+            # 1. Crear/obtener conversación con estado pendiente_envio
+            conv, created = LeadConversacion.objects.using('leads_db').get_or_create(
                 lead=lead,
-                defaults={'mensajes': [], 'estado': 'nuevo'}
+                defaults={'mensajes': [], 'estado': 'pendiente_envio'}
             )
-            conv.mensajes.append({
-                'role': 'assistant',
-                'content': mensaje_completo,
-                'timestamp': ahora.isoformat(),
-            })
-            conv.estado = 'contactado'
-            conv.ultimo_contacto = ahora
-            conv.save()
-            # Marcar lead como contactado
-            lead.estado = 'Contactado'
-            lead.save()
-            self.stdout.write(f"  🔄 Lead marcado como Contactado + conversación creada")
-        else:
-            # Actualizar conversación existente con mensaje completo
-            conversacion.mensajes.append({
-                'role': 'assistant',
-                'content': mensaje_completo,
-                'timestamp': ahora.isoformat(),
-            })
-            if etapa == 'followup_24h':
-                nuevo_estado = 'followup_24h'
-            elif etapa == 'followup_48h':
-                nuevo_estado = 'followup_48h'
+            # Si ya existía pero sin saludo, resetear estado
+            if conv.estado in ('nuevo', 'pendiente_envio'):
+                # Guardar mensaje assistant como pendiente
+                conv.mensajes.append({
+                    'role': 'assistant',
+                    'content': mensaje_completo,
+                    'timestamp': ahora.isoformat(),
+                })
+                conv.estado = 'pendiente_envio'
+                conv.ultimo_contacto = ahora
+                conv.save(using='leads_db')
+                self.stdout.write(f"  📦 Conversación creada con estado 'pendiente_envio'")
             else:
-                nuevo_estado = 'contactado'
-            conversacion.estado = nuevo_estado
-            conversacion.ultimo_contacto = ahora
-            conversacion.save()
-            self.stdout.write(f"  🔄 Conversación actualizada (nuevo estado: {nuevo_estado})")
-            lead.estado = 'Contactado'
-            lead.save()
+                # Estado ya avanzado, no debería llegar aquí por la guardia anti-duplicado
+                self.stdout.write(f"  ⚠️ Conversación ya en estado {conv.estado}, no se modifica")
+                return
         
-        self.stdout.write(f"  ✅ Lead actualizado y conversación registrada")
+        # 2. ENVIAR WhatsApp
+        exito_completo = True
+        for i, parte in enumerate(partes):
+            exito = self._enviar_whatsapp(lead.telefono, parte)
+            if not exito:
+                self.stdout.write(f"  ❌ Error al enviar WhatsApp parte {i+1}")
+                exito_completo = False
+                break
+            self.stdout.write(f"  ✅ Parte {i+1}/{len(partes)} enviada")
+            if i < len(partes) - 1:
+                delay = random.uniform(2, 4)
+                time.sleep(delay)
+        
+        # 3. Marcar éxito o error en BD
+        if exito_completo:
+            if etapa == 'initial':
+                conv.estado = 'contactado'
+                conv.ultimo_contacto = ahora
+                conv.save(using='leads_db')
+                lead.estado = 'Contactado'
+                lead.save(using='leads_db')
+                self.stdout.write(f"  ✅ Conversación marcada como 'contactado' + lead actualizado")
+                self._esperar_como_humano()
+            else:
+                # follow-ups
+                conversacion.mensajes.append({
+                    'role': 'assistant',
+                    'content': mensaje_completo,
+                    'timestamp': ahora.isoformat(),
+                })
+                if etapa == 'followup_24h':
+                    nuevo_estado = 'followup_24h'
+                else:
+                    nuevo_estado = 'contactado'
+                conversacion.estado = nuevo_estado
+                conversacion.ultimo_contacto = ahora
+                conversacion.save(using='leads_db')
+                lead.estado = 'Contactado'
+                lead.save(using='leads_db')
+                self.stdout.write(f"  🔄 Conversación actualizada (nuevo estado: {nuevo_estado})")
+        else:
+            # ⛔ Error: revertir estado pendiente
+            if etapa == 'initial':
+                # Eliminar el mensaje pendiente que no se pudo enviar
+                if conv.mensajes:
+                    conv.mensajes.pop()
+                conv.estado = 'error_envio'
+                conv.save(using='leads_db')
+                self.stdout.write(f"  ❌ Lead marcado como error_envio. Conversación revertida.")
+                logger.error(f'[ENVIO] Error enviando WhatsApp a lead {lead.id}, conversación en estado error_envio')
+            raise ValueError(f"Error al enviar WhatsApp a lead {lead.id}")
     
     def _generar_mensaje_inicial(self, lead):
         """Genera el primer mensaje estático de prospección."""
