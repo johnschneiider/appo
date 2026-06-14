@@ -388,12 +388,12 @@ def webhook_crm(request):
                             message_content_stripped = media_caption.strip()
                             logger.info(f'[WEBHOOK] Media con caption de {phone}: "{media_caption[:50]}"')
                         
-                        # Inicializar stripped (necesario antes de continue)
+                        # FIX 6a: FILTRO MENSAJES VACÍOS - asegurar que message_content_stripped no esté vacío
                         if not message_content_stripped:
                             message_content_stripped = message_content.strip() if message_content else ''
                         # FILTRO: ignorar mensajes vacíos, system events o solo whitespace
                         if not message_content_stripped:
-                            logger.info(f'[WEBHOOK] Mensaje vacío de {phone} - ignorado')
+                            logger.info(f'[WEBHOOK] Mensaje vacío de {phone} - ignorado (FIX 6a)')
                             continue
                         
                         # FILTRO: ignorar eventos de sistema (recibos de lectura, delivery, etc.)
@@ -577,20 +577,56 @@ def webhook_crm(request):
                             except Exception as ws_err:
                                 logger.warning(f'No se pudo notificar WebSocket: {ws_err}')
 
-                            # Respuesta automática del agente en thread separado
-                            # (evitar bloquear el webhook - responder 200 inmediatamente)
-                            import threading
-                            _chat_ref = chat
-                            def _responder_async(lead_id, msg_content, tel, chat_obj, jid, es_autoreply=False):
-                                import time, random
-                                from leads_admin.models import MensajeWhatsApp
-                                
-                                # GUARD: Si el teléfono es un LID sin resolver, no intentar responder.
-                                # El microservicio whatsapp-web.js NO puede enviar a @lid (error "t").
-                                # Solo respondemos si tenemos número real (@c.us) o el JID es @s.whatsapp.net.
-                                if str(tel).startswith('lid_') and (not jid or '@lid' in str(jid)):
-                                    logger.info(f'[AUTO-RESPONDER] Saltando respuesta a LID sin resolver: {tel} (jid={jid})')
-                                    return
+                            # ═══ FIX 6b: CLASIFICACIÓN 3 ESCENARIOS - Verificar si es cliente de negocio ═══
+                            es_cliente_negocio = False
+                            try:
+                                from clientes.models import ClienteProvisional
+                                if ClienteProvisional.objects.using('default').filter(telefono__contains=phone_clean).exists():
+                                    es_cliente_negocio = True
+                                    logger.info(f'[FIX 6b] Número {phone_clean} es cliente de negocio - modo SOPORTE')
+                            except Exception as e:
+                                logger.warning(f'[FIX 6b] Error verificando ClienteProvisional: {e}')
+                            
+                            # ═══ FIX 6d: NO_CONTACTAR CHECK ═══
+                            no_contactar = False
+                            if lead and lead.id > 0:
+                                if hasattr(lead, 'no_contactar') and lead.no_contactar:
+                                    no_contactar = True
+                                    logger.info(f'[FIX 6d] Lead {lead.id} tiene no_contactar=True - no se responde automáticamente')
+                            
+                            # ═══ GUARDIA: No contactar OR Cliente Negocio → guardar pero no responder (o responder modo soporte) ═══
+                            if no_contactar:
+                                logger.info(f'[FIX 6d] Lead con no_contactar: mensaje guardado, sin respuesta automática')
+                            elif es_cliente_negocio:
+                                # Responder en modo SOPORTE (no prospectar)
+                                import threading as _mt
+                                def _responder_soporte(tel, jid_override):
+                                    time.sleep(1)
+                                    mensaje_soporte = "¡Hola! 👋 Bienvenido a Appo. Si necesitas ayuda con tu reserva, confirma tu cita o consulta el estado. ¿En qué podemos ayudarte?"
+                                    logger.info(f'[FIX 6b] Enviando mensaje de soporte a cliente negocio: {tel}')
+                                    from .models import ChatWhatsApp as _CW
+                                    cw = _CW.objects.using('leads_db').filter(chat_id=jid_override).first()
+                                    if cw:
+                                        cw.last_message = mensaje_soporte
+                                        cw.save(using='leads_db')
+                                    enviar_whatsapp(tel, mensaje_soporte, jid_override=jid_override)
+                                _mt.Thread(target=_responder_soporte, args=(phone_for_response, remote_jid), daemon=True).start()
+                                logger.info(f'[FIX 6b] Thread de soporte iniciado para cliente negocio: {phone_for_response}')
+                            else:
+                                # Respuesta automática del agente en thread separado
+                                # (evitar bloquear el webhook - responder 200 inmediatamente)
+                                import threading
+                                _chat_ref = chat
+                                def _responder_async(lead_id, msg_content, tel, chat_obj, jid, es_autoreply=False):
+                                    import time, random
+                                    from leads_admin.models import MensajeWhatsApp
+                                    
+                                    # GUARD: Si el teléfono es un LID sin resolver, no intentar responder.
+                                    # El microservicio whatsapp-web.js NO puede enviar a @lid (error "t").
+                                    # Solo respondemos si tenemos número real (@c.us) o el JID es @s.whatsapp.net.
+                                    if str(tel).startswith('lid_') and (not jid or '@lid' in str(jid)):
+                                        logger.info(f'[AUTO-RESPONDER] Saltando respuesta a LID sin resolver: {tel} (jid={jid})')
+                                        return
                                 
                                 MAX_RETRIES = 2
                                 # Stagger aleatorio para no saturar la API (múltiples respuestas simultáneas)
