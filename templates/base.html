@@ -382,7 +382,10 @@
     document.addEventListener('DOMContentLoaded', function() {
       const alerts = document.querySelectorAll('.alert');
       alerts.forEach(function(alert) {
-        // Excluir alertas de confirmación de reserva
+        // Excluir alertas de confirmación de reserva y el link compartible del panel
+        if (alert.id === 'panel-link-compartir') {
+          return;
+        }
         if (alert.closest('.card-body') && alert.querySelector('.alert-heading') && 
             (alert.querySelector('.alert-heading').textContent.includes('Detalles de tu reserva') ||
              alert.querySelector('.alert-heading').textContent.includes('Información importante'))) {

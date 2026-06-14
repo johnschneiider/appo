@@ -79,15 +79,15 @@
 
     <!-- ── Link compartible ── -->
     <div class="col-12 col-lg-8 mx-auto mb-3">
-        <div class="alert alert-info d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 px-3 mb-0" style="border-left: 4px solid #133A7F;">
+        <div class="alert alert-info d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 px-3 mb-0" id="panel-link-compartir" style="border-left: 4px solid #133A7F;">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-share fs-5" style="color:#133A7F;"></i>
                 <span class="small">Tu link público para compartir:</span>
                 <code style="font-size:0.85rem; background:#f0f4ff; padding:2px 8px; border-radius:4px; word-break:break-all;">
-                    https://appo.com.co/reservar/{{ negocio.id }}
+                    https://appo.com.co/clientes/negocio/{{ negocio.id }}/reservar/
                 </code>
             </div>
-            <button class="btn btn-sm btn-outline-primary" onclick="navigator.clipboard.writeText('https://appo.com.co/reservar/{{ negocio.id }}'); this.textContent='¡Copiado!'; setTimeout(()=>this.textContent='Copiar',2000);">
+            <button class="btn btn-sm btn-outline-primary" onclick="navigator.clipboard.writeText('https://appo.com.co/clientes/negocio/{{ negocio.id }}/reservar/'); this.textContent='¡Copiado!'; setTimeout(()=>this.textContent='Copiar',2000);">
                 <i class="bi bi-clipboard"></i> Copiar
             </button>
         </div>
