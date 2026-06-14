@@ -700,12 +700,16 @@ def webhook_crm(request):
                             # Usar JID resuelto por el microservicio (@c.us) para responder
                             # Esto garantiza que la respuesta llegue al chat correcto
                             jid_for_response = resolved_jid if resolved_jid else (real_sender_jid if real_sender_jid else remote_jid)
-                            threading.Thread(
-                                target=_responder_async,
-                                args=(lead.id, message_content, phone_for_response, _chat_ref, jid_for_response, is_auto_reply),
-                                daemon=True
-                            ).start()
-                            logger.info(f'[WEBHOOK] Thread iniciado para {phone_for_response}')
+                            # Solo iniciar thread si no es cliente negocio ni no_contactar (ya manejado arriba)
+                            if not es_cliente_negocio and not no_contactar:
+                                threading.Thread(
+                                    target=_responder_async,
+                                    args=(lead.id, message_content, phone_for_response, _chat_ref, jid_for_response, is_auto_reply),
+                                    daemon=True
+                                ).start()
+                                logger.info(f'[WEBHOOK] Thread de respuesta iniciado para {phone_for_response}')
+                            else:
+                                logger.info(f'[WEBHOOK] Respuesta automática saltada para {phone_for_response} (cliente_negocio={es_cliente_negocio}, no_contactar={no_contactar})')
                         except Exception as e:
                             logger.error(f'Error guardando mensaje en base local: {e}')
                         

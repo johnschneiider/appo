@@ -2,8 +2,17 @@
 
 {% block title %}Panel Profesional - Appo{% endblock %}
 
+{% block extra_css %}
+<style>
+/* ── Panel profesional: orden visual ── */
+.prof-panel .card { border-radius: 14px; border: 1px solid #eaeef5; }
+.prof-panel .btn-ausencia { background: #133A7F; color: #fff; border: none; }
+.prof-panel .btn-ausencia:hover { background: #0A1F45; color: #fff; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container py-5">
+<div class="container py-5 prof-panel">
     <div class="row justify-content-center">
         <div class="col-lg-10">
             <div class="card shadow-lg border-0 rounded-4">
