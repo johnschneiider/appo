@@ -240,17 +240,35 @@ class DetallePeluqueroView(DetailView):
         
         return context
 
-@login_required
 @ratelimit(key='ip', rate='10/m', method=['POST'])
 def reservar_turno(request, peluquero_id):
+    """
+    Vista pública de reserva: cualquier persona puede VER servicios y precios.
+    Solo se requiere autenticación al CONFIRMAR la reserva (POST).
+    """
     logger.info(f"=== INICIO reservar_turno ===")
-    logger.info(f"Usuario: {request.user.username} ({request.user.tipo})")
+    logger.info(f"Usuario: {request.user} ({getattr(request.user, 'tipo', 'anon')})")
     logger.info(f"Usuario autenticado: {request.user.is_authenticated}")
     logger.info(f"Método HTTP: {request.method}")
     logger.info(f"Peluquero ID: {peluquero_id}")
     logger.info(f"GET params: {request.GET}")
-    logger.info(f"URL completa: {request.build_absolute_uri()}")
-    logger.info(f"Headers: {dict(request.headers)}")
+    
+    # ── Gate de autenticación suave: GET público, POST requiere auth ──
+    if not request.user.is_authenticated and request.method == 'POST':
+        logger.info("Anónimo intentó POST en reservar_turno, redirigiendo a login")
+        from django.contrib.auth import redirect_to_login
+        return redirect_to_login(request.get_full_path())
+    
+    if not request.user.is_authenticated:
+        # Anónimo en GET: redirigir a reservar_negocio que ya tiene vitrina + CTA
+        logger.info(f"Anónimo en GET reservar_turno, redirigiendo a reservar_negocio")
+        from django.shortcuts import redirect
+        from django.urls import reverse
+        qs = request.GET.urlencode()
+        url = reverse('clientes:reservar_negocio', kwargs={'negocio_id': peluquero_id})
+        if qs:
+            url += '?' + qs
+        return redirect(url)
     
     try:
         negocio = get_object_or_404(Negocio, id=peluquero_id, activo=True)
