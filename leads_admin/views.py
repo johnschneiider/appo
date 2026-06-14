@@ -711,16 +711,16 @@ def webhook_crm(request):
                             else:
                                 logger.info(f'[WEBHOOK] Respuesta automática saltada para {phone_for_response} (cliente_negocio={es_cliente_negocio}, no_contactar={no_contactar})')
                             # FIX 6c: Verificar que conv.estado = 'respondio' después de procesar_lead
-                            if lead_id > 0 and not es_cliente_negocio:
+                            if lead.id > 0 and not es_cliente_negocio:
                                 try:
                                     from leads_admin.models import LeadConversacion as _LC
-                                    _conv = _LC.objects.using('leads_db').filter(lead_id=lead_id).first()
-                                    if _conv and _conv.estado != 'respondio' and _conv.estado != 'rechazo_permanente':
-                                        logger.warning(f'[FIX 6c] conv.estado={_conv.estado} para lead {lead_id}, forzando respondio')
+                                    _conv = _LC.objects.using('leads_db').filter(lead_id=lead.id).first()
+                                    if _conv and _conv.estado not in ('respondio', 'rechazo_permanente', 'no_respondio'):
+                                        logger.warning(f'[FIX 6c] conv.estado={_conv.estado} para lead {lead.id}, forzando respondio')
                                         _conv.estado = 'respondio'
                                         _conv.save(using='leads_db')
                                 except Exception as _e:
-                                    logger.error(f'[FIX 6c] Error verificando estado lead {lead_id}: {_e}')
+                                    logger.error(f'[FIX 6c] Error verificando estado lead {lead.id}: {_e}')
                         except Exception as e:
                             logger.error(f'Error guardando mensaje en base local: {e}')
                         

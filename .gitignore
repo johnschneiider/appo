@@ -54,3 +54,6 @@ configurar_twilio_vps.sh
 # Archivos temporales
 *.tmp
 *.temp
+
+# WhatsApp webjs session data
+whatsapp-service/.wwebjs_auth/
