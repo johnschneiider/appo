@@ -716,20 +716,16 @@ def dashboard_cliente(request):
 
     return render(request, 'clientes/dashboard.html', context)
 
-@login_required
 def reservar_negocio(request, negocio_id):
+    """
+    Vista pública de reserva: cualquier persona puede VER servicios y precios.
+    Solo se requiere autenticación al CONFIRMAR la reserva (POST).
+    """
     logger.info(f"=== INICIO reservar_negocio ===")
-    logger.info(f"Usuario: {request.user.username} ({request.user.tipo})")
+    logger.info(f"Usuario: {request.user} ({getattr(request.user, 'tipo', 'anon')})")
     logger.info(f"Usuario autenticado: {request.user.is_authenticated}")
     logger.info(f"Método HTTP: {request.method}")
     logger.info(f"Negocio ID: {negocio_id}")
-    logger.info(f"GET params: {request.GET}")
-    
-    # Verificación adicional de autenticación
-    if not request.user.is_authenticated:
-        logger.error("Usuario no autenticado en reservar_negocio")
-        from django.contrib.auth import redirect_to_login
-        return redirect_to_login(request.get_full_path())
     
     negocio = get_object_or_404(Negocio, id=negocio_id, activo=True)
     logger.info(f"Negocio encontrado: {negocio.nombre}")
@@ -788,6 +784,7 @@ def reservar_negocio(request, negocio_id):
             'profesional_preseleccionado': profesional_preseleccionado,
             'fecha_preseleccionada': fecha_preseleccionada,
             'disponibilidad': disponibilidad,
+            'user_authenticated': request.user.is_authenticated,
         })
     
     # Manejar POST request - procesar formulario
@@ -885,6 +882,12 @@ def reservar_negocio(request, negocio_id):
                         })
                 
                 # Crear la reserva
+                # ── Gate de autenticación: solo para CONFIRMAR la reserva ──
+                if not request.user.is_authenticated:
+                    logger.info("Usuario anónimo intentó reservar, redirigiendo a login")
+                    from django.contrib.auth import redirect_to_login
+                    return redirect_to_login(request.get_full_path())
+                
                 reserva = Reserva(
                     cliente=request.user,
                     peluquero=negocio,

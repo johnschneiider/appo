@@ -82,75 +82,109 @@
       </div>
 
       <div class="reserva-card-body">
-        {% if form %}
-          {% if form.errors %}
-          <div class="alert alert-danger py-2 mb-3" style="font-size:0.85rem;border-radius:8px;">
-            <strong>Corrige los siguientes errores:</strong>
-            <ul class="mb-0 mt-1">
-              {% for field in form %}
-                {% for error in field.errors %}<li>{{ field.label }}: {{ error }}</li>{% endfor %}
-              {% endfor %}
-              {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
-            </ul>
-          </div>
+        {% if user_authenticated %}
+          {% if form %}
+            {% if form.errors %}
+            <div class="alert alert-danger py-2 mb-3" style="font-size:0.85rem;border-radius:8px;">
+              <strong>Corrige los siguientes errores:</strong>
+              <ul class="mb-0 mt-1">
+                {% for field in form %}
+                  {% for error in field.errors %}<li>{{ field.label }}: {{ error }}</li>{% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+
+            <form method="post">
+              {% csrf_token %}
+              <div class="mb-3">
+                <label for="id_servicio" class="form-label"><i class="bi bi-scissors me-1"></i> Servicio</label>
+                <select name="servicio" id="id_servicio" class="form-select" required>
+                  <option value="">Elige un servicio</option>
+                  {% for s in servicios %}
+                    <option value="{{ s.id }}">{{ s.servicio.nombre }} — {{ s.duracion }} min · ${{ s.precio }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label for="id_profesional" class="form-label"><i class="bi bi-person me-1"></i> Profesional</label>
+                {% if negocio.matriculaciones_aprobadas %}
+                <select name="profesional" id="id_profesional" class="form-select">
+                  <option value="">Elige un profesional</option>
+                  {% for m in negocio.matriculaciones_aprobadas %}
+                    <option value="{{ m.profesional.id }}" {% if profesional_preseleccionado and profesional_preseleccionado.id == m.profesional.id %}selected{% endif %}>
+                      {{ m.profesional.nombre_completo }}
+                    </option>
+                  {% endfor %}
+                </select>
+                {% else %}
+                <div class="alert alert-info py-2 mb-0" style="font-size:0.85rem;border-radius:8px;background:#f0f7ff;border-color:#b8d8ff;color:#1e3a8a;">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Atendido por <strong>{{ negocio.propietario.username }}</strong> (propietario)
+                </div>
+                {% endif %}
+              </div>
+
+              <div class="row g-2 mb-3">
+                <div class="col-6">
+                  <label for="id_fecha" class="form-label"><i class="bi bi-calendar3 me-1"></i> Fecha</label>
+                  <input type="date" name="fecha" id="id_fecha" class="form-control" required>
+                </div>
+                <div class="col-6">
+                  <label for="id_hora_inicio" class="form-label"><i class="bi bi-clock me-1"></i> Hora</label>
+                  <input type="time" name="hora_inicio" id="id_hora_inicio" class="form-control" required>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="id_notas" class="form-label"><i class="bi bi-chat-text me-1"></i> Notas (opcional)</label>
+                <textarea name="notas" id="id_notas" class="form-control" rows="2" placeholder="Algo que quieras agregar..."></textarea>
+              </div>
+
+              <button type="submit" class="btn-submit">
+                <i class="bi bi-check-circle me-1"></i> Confirmar reserva
+              </button>
+            </form>
+          {% else %}
+            <div class="text-center py-4">
+              <i class="bi bi-exclamation-triangle" style="font-size:2rem;color:#f59e0b;"></i>
+              <p class="mt-2" style="color:#334155;font-size:0.9rem;">No se pudo cargar el formulario de reserva.</p>
+              <a href="{% url 'clientes:detalle_peluquero' negocio.id %}" class="btn btn-sm" style="background:var(--appo-primary);color:#fff;">Volver al negocio</a>
+            </div>
           {% endif %}
-
-          <form method="post">
-            {% csrf_token %}
-            <div class="mb-3">
-              <label for="id_servicio" class="form-label"><i class="bi bi-scissors me-1"></i> Servicio</label>
-              <select name="servicio" id="id_servicio" class="form-select" required>
-                <option value="">Elige un servicio</option>
-                {% for s in servicios %}
-                  <option value="{{ s.id }}">{{ s.servicio.nombre }} — {{ s.duracion }} min · ${{ s.precio }}</option>
-                {% endfor %}
-              </select>
-            </div>
-
-            <div class="mb-3">
-              <label for="id_profesional" class="form-label"><i class="bi bi-person me-1"></i> Profesional</label>
-              {% if negocio.matriculaciones_aprobadas %}
-              <select name="profesional" id="id_profesional" class="form-select">
-                <option value="">Elige un profesional</option>
-                {% for m in negocio.matriculaciones_aprobadas %}
-                  <option value="{{ m.profesional.id }}" {% if profesional_preseleccionado and profesional_preseleccionado.id == m.profesional.id %}selected{% endif %}>
-                    {{ m.profesional.nombre_completo }}
-                  </option>
-                {% endfor %}
-              </select>
-              {% else %}
-              <div class="alert alert-info py-2 mb-0" style="font-size:0.85rem;border-radius:8px;background:#f0f7ff;border-color:#b8d8ff;color:#1e3a8a;">
-                <i class="bi bi-info-circle me-1"></i>
-                Atendido por <strong>{{ negocio.propietario.username }}</strong> (propietario)
-              </div>
-              {% endif %}
-            </div>
-
-            <div class="row g-2 mb-3">
-              <div class="col-6">
-                <label for="id_fecha" class="form-label"><i class="bi bi-calendar3 me-1"></i> Fecha</label>
-                <input type="date" name="fecha" id="id_fecha" class="form-control" required>
-              </div>
-              <div class="col-6">
-                <label for="id_hora_inicio" class="form-label"><i class="bi bi-clock me-1"></i> Hora</label>
-                <input type="time" name="hora_inicio" id="id_hora_inicio" class="form-control" required>
-              </div>
-            </div>
-
-            <div class="mb-3">
-              <label for="id_notas" class="form-label"><i class="bi bi-chat-text me-1"></i> Notas (opcional)</label>
-              <textarea name="notas" id="id_notas" class="form-control" rows="2" placeholder="Algo que quieras agregar..."></textarea>
-            </div>
-
-            <button type="submit" class="btn-submit">
-              <i class="bi bi-check-circle me-1"></i> Confirmar reserva
-            </button>
-          </form>
         {% else %}
-          <div class="text-center py-4">
-            <i class="bi bi-exclamation-triangle" style="font-size:2rem;color:#f59e0b;"></i>
-            <p class="mt-2" style="color:#334155;font-size:0.9rem;">No se pudo cargar el formulario de reserva.</p>
-            <a href="{% url 'clientes:detalle_peluquero' negocio.id %}" class="btn btn-sm" style="background:var(--appo-primary);color:#fff;">Volver al negocio</a>
+          <!-- Anónimo: vitrina de servicios + CTA de registro -->
+          <div class="text-center py-3">
+            <i class="bi bi-shop-window" style="font-size:2.5rem;color:var(--appo-primary);"></i>
+            <h5 class="fw-bold mt-2 mb-1" style="color:#0D0D0D;">{{ negocio.nombre }}</h5>
+            <p class="text-muted small mb-3">Ver servicios y precios</p>
+
+            <div class="list-group list-group-flush text-start mb-3" style="border-radius:8px;overflow:hidden;">
+              {% for s in servicios %}
+              <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3" style="border-color:#eaeef5;">
+                <div>
+                  <strong style="font-size:0.9rem;">{{ s.servicio.nombre }}</strong>
+                  <br><small class="text-muted">{{ s.duracion }} min</small>
+                </div>
+                <span class="fw-bold" style="color:var(--appo-primary);font-size:0.95rem;">${{ s.precio }}</span>
+              </div>
+              {% endfor %}
+            </div>
+
+            <hr class="my-3">
+            <p style="color:#334155;font-size:0.9rem;">
+              <i class="bi bi-person me-1"></i>Regístrate o inicia sesión para reservar
+            </p>
+            <div class="d-flex flex-column flex-sm-row gap-2 justify-content-center">
+              <a href="{% url 'account_login' %}?next={{ request.path }}" class="btn btn-sm" style="background:var(--appo-primary);color:#fff;border-radius:8px;padding:0.5rem 1.5rem;font-weight:600;">
+                <i class="bi bi-box-arrow-in-right me-1"></i> Iniciar Sesión
+              </a>
+              <a href="{% url 'cuentas:registro_unificado' %}?next={{ request.path }}" class="btn btn-sm btn-outline-primary" style="border-radius:8px;padding:0.5rem 1.5rem;font-weight:600;">
+                <i class="bi bi-person-plus me-1"></i> Registrarme
+              </a>
+            </div>
           </div>
         {% endif %}
       </div>
