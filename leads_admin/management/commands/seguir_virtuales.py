@@ -17,38 +17,18 @@ from leads_admin.prospector_agent import get_prospector_agent
 logger = logging.getLogger(__name__)
 
 WHATSAPP_SERVICE = "http://localhost:8081/message/sendText/APPO_CRM"
-MAX_FOLLOWUPS = 3  # Máximo de follow-ups consecutivos antes de rendirse
+MAX_FOLLOWUPS = 1  # Máximo de follow-ups consecutivos antes de rendirse
 
 # Etapas de follow-up (tiempo desde último mensaje del bot sin respuesta)
+# Solo 1 etapa: recordatorio_30min. Si no responde, no insistir más.
 FOLLOWUP_STAGES = [
     {
         'name': 'recordatorio_30min',
         'min_wait': timedelta(minutes=15),
-        'max_wait': timedelta(hours=2),
+        'max_wait': timedelta(hours=48),
         'message': (
             "¿Sigues por ahí? 😊 Cualquier duda sobre Appo dime y te ayudo "
             "sin compromiso. La capa gratis es para siempre, sin tarjeta."
-        ),
-    },
-    {
-        'name': 'recordatorio_2h',
-        'min_wait': timedelta(hours=2),
-        'max_wait': timedelta(hours=8),
-        'message': (
-            "Hola de nuevo 👋 Te cuento: Appo es usado por +11 barberías en Colombia "
-            "y tiene 30 días gratis sin tarjeta ni permanencia. "
-            "Pruébalo y si no te sirve, nada pasa. appo.com.co"
-        ),
-    },
-    {
-        'name': 'cierre_24h',
-        'min_wait': timedelta(hours=8),
-        'max_wait': timedelta(hours=48),
-        'message': (
-            "Juan otra vez. Ya esta es la última, tranqui 😊 "
-            "Te dejo el dato: appo.com.co, 30 días gratis, sin tarjeta. "
-            "A veces uno no sabe que lo necesita hasta que lo prueba. "
-            "Si algún día te sirve, ahí está. ¡Buen día! 🙌"
         ),
     },
 ]
@@ -217,7 +197,7 @@ class Command(BaseCommand):
         }
         
         try:
-            self.stdout.write(f"  📱 Follow-up {index+1}/3 → {numero}: {mensaje[:60]}...")
+            self.stdout.write(f"  📱 Follow-up {index+1}/{MAX_FOLLOWUPS} → {numero}: {mensaje[:60]}...")
             r = requests.post(
                 WHATSAPP_SERVICE,
                 headers={"Content-Type": "application/json"},
