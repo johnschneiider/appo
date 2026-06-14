@@ -4,6 +4,14 @@
 
 {% block content %}
 <style>
+/* ── Perfil peluquero: diseño equilibrado ── */
+.profile-card { max-width: 420px; margin: 0 auto; }
+.profile-img { width: 120px; height: 120px; object-fit: cover; border-radius: 50%; border: 3px solid #133A7F; }
+@media (max-width: 576px) {
+  .profile-img { width: 90px; height: 90px; }
+  .profile-card .card-body { padding: 1rem !important; }
+}
+
 .btn-outline-primary {
     color: #181818 !important;
     border-color: #181818 !important;

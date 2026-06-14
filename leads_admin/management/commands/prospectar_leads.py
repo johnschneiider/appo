@@ -486,21 +486,13 @@ class Command(BaseCommand):
         )
     
     def _generar_mensaje_followup_48h(self, lead, conversacion, agent):
-        """Genera follow-up 48h vía LLM — último intento, respetuoso, sin presión."""
-        nombre = lead.nombre_establecimiento or "amigo"
-        historial = list(conversacion.mensajes) if conversacion and conversacion.mensajes else []
-        llm_respuesta = agent.generar_followup(historial, 'followup_48h', nombre)
-        if llm_respuesta:
-            return llm_respuesta
-        # Fallback si el LLM falla
-        logger.warning(f'[FOLLOWUP] Fallback estático para lead {lead.id} (48h)')
-        return (
-            f"Juan acá de nuevo, y esta es la última, tranqui. "
-            f"Te dejo el dato directo: appo.com.co, 30 días gratis, sin tarjeta, sin permanencia. "
-            f"Entrás, lo probás, y si no te sirve, nada pasa. "
-            f"A veces uno no sabe lo que le hace falta hasta que lo prueba. "
-            f"¡Buen día! 🙌"
-        )
+        """
+        Genera follow-up 48h — FIX 4e: retorna None directamente.
+        El agente solo genera máximo 1 follow-up (followup_24h).
+        Si no respondió al primero, no insistir más.
+        """
+        logger.info(f'[FOLLOWUP] Lead {lead.id}: followup_48h no se genera (máximo 1 follow-up)')
+        return None
     
     def _validar_numero_whatsapp(self, numero: str) -> bool:
         """
