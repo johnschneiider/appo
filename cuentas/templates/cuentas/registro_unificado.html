@@ -37,14 +37,17 @@
                         {% if request.GET.next %}
                         <input type="hidden" name="next" value="{{ request.GET.next }}">
                         {% endif %}
+                        {% if request.GET.plan %}
+                        <input type="hidden" name="plan" value="{{ request.GET.plan }}">
+                        {% endif %}
                         
                         <!-- Selección de tipo de cuenta -->
-                        <div class="mb-4" id="seccion-tipo-cuenta">
+                        <div class="mb-4" id="seccion-tipo-cuenta" {% if tipo_sugerido %}style="display:none;"{% endif %}>
                             <label class="form-label fw-bold form-title">¿Qué tipo de cuenta quieres crear?</label>
                             <div class="d-flex flex-column flex-md-row gap-3 justify-content-md-center align-items-md-stretch">
                                 <div class="flex-fill">
                                     <div class="form-check w-100 h-100">
-                                        <input class="form-check-input" type="radio" name="tipo" id="tipo_cliente" value="cliente" required>
+                                        <input class="form-check-input" type="radio" name="tipo" id="tipo_cliente" value="cliente" {% if tipo_sugerido == 'cliente' %}checked{% endif %} required>
                                         <label class="form-check-label w-100 h-100 p-2 p-md-3 border d-flex flex-row align-items-center justify-content-between text-center gap-2 form-option" for="tipo_cliente" style="min-width: 0; border-radius: var(--appo-radius) !important;">
                                             <div class="text-start flex-grow-1">
                                                 <span class="fw-bold form-text">Cliente</span><br>
@@ -56,7 +59,7 @@
                                 </div>
                                 <div class="flex-fill">
                                     <div class="form-check w-100 h-100">
-                                        <input class="form-check-input" type="radio" name="tipo" id="tipo_negocio" value="negocio" required>
+                                        <input class="form-check-input" type="radio" name="tipo" id="tipo_negocio" value="negocio" {% if tipo_sugerido == 'negocio' or not tipo_sugerido %}checked{% endif %} required>
                                         <label class="form-check-label w-100 h-100 p-2 p-md-3 border d-flex flex-row align-items-center justify-content-between text-center gap-2 form-option" for="tipo_negocio" style="min-width: 0; border-radius: var(--appo-radius) !important;">
                                             <div class="text-start flex-grow-1">
                                                 <span class="fw-bold form-text">Negocio</span><br>
@@ -68,7 +71,7 @@
                                 </div>
                                 <div class="flex-fill">
                                     <div class="form-check w-100 h-100">
-                                        <input class="form-check-input" type="radio" name="tipo" id="tipo_profesional" value="profesional" required>
+                                        <input class="form-check-input" type="radio" name="tipo" id="tipo_profesional" value="profesional" {% if tipo_sugerido == 'profesional' %}checked{% endif %} required>
                                         <label class="form-check-label w-100 h-100 p-2 p-md-3 border d-flex flex-row align-items-center justify-content-between text-center gap-2 form-option" for="tipo_profesional" style="min-width: 0; border-radius: var(--appo-radius) !important;">
                                             <div class="text-start flex-grow-1">
                                                 <span class="fw-bold form-text">Profesional</span><br>
@@ -85,6 +88,10 @@
                                 </div>
                             {% endif %}
                         </div>
+
+                        {% if tipo_sugerido %}
+                        <input type="hidden" name="tipo" value="{{ tipo_sugerido }}">
+                        {% endif %}
 
                         <!-- Campos del formulario -->
                         <div class="mb-3">
@@ -182,7 +189,10 @@
                     {% is_provider_available 'google' as google_available %}
                     {% if google_available %}
                     <div class="mb-4">
-                        <a href="{% safe_provider_login_url 'google' %}" class="btn btn-outline-secondary py-3 w-100 d-flex align-items-center justify-content-center gap-3" style="background:#fff; border:1.5px solid #dadce0; color:#3c4043;">
+                        <a href="{% safe_provider_login_url 'google' %}" 
+                           class="btn btn-outline-secondary py-3 w-100 d-flex align-items-center justify-content-center gap-3 btn-google-login"
+                           style="background:#fff; border:1.5px solid #dadce0; color:#3c4043;"
+                           data-base-url="{% safe_provider_login_url 'google' %}">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                               <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -1293,6 +1303,88 @@ document.addEventListener('DOMContentLoaded', function() {
             message: ''
         };
     }
+});
+
+// ── Google OAuth: pasar tipo de cuenta seleccionado ──
+document.addEventListener('DOMContentLoaded', function() {
+    const googleBtn = document.querySelector('.btn-google-login');
+    if (!googleBtn) return;
+    
+    const baseUrl = googleBtn.getAttribute('data-base-url');
+    const tipoRadios = document.querySelectorAll('input[name="tipo"]');
+    
+    function updateGoogleUrl() {
+        const seleccionado = document.querySelector('input[name="tipo"]:checked');
+        if (seleccionado && seleccionado.value) {
+            sessionStorage.setItem('appo_tipo_cuenta', seleccionado.value);
+            const separator = baseUrl.includes('?') ? '&' : '?';
+            googleBtn.href = baseUrl + separator + 'tipo=' + seleccionado.value;
+        }
+    }
+    
+    tipoRadios.forEach(radio => {
+        radio.addEventListener('change', updateGoogleUrl);
+    });
+    
+    updateGoogleUrl();
+    
+    // ── Modal de confirmación antes de ir a Google ──
+    // Crear el modal dinámicamente
+    const modalHTML = `
+        <div class="modal fade" id="googleConfirmModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg rounded-4">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold" style="color:#181818;">
+                            <i class="bi bi-google me-2" style="color:#4285F4;"></i>Confirmar tipo de cuenta
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-center py-4">
+                        <p class="mb-2" style="font-size:1.05rem;color:#181818;">¿Estás seguro de crear una cuenta tipo</p>
+                        <p class="fw-bold mb-3" id="modalTipoCuenta" style="font-size:1.3rem;color:#1e3a8a;"></p>
+                        <p class="text-muted small mb-0">Serás redirigido a Google para continuar con el registro.</p>
+                    </div>
+                    <div class="modal-footer border-0 pt-0 d-flex justify-content-center gap-3">
+                        <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary px-4" id="confirmGoogleBtn">
+                            <i class="bi bi-google me-2" style="color:#fff;"></i>Sí, continuar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Insertar modal en el DOM
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    const confirmModal = new bootstrap.Modal(document.getElementById('googleConfirmModal'));
+    
+    // Interceptar click en el botón de Google
+    googleBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        // Actualizar URL por si acaso
+        updateGoogleUrl();
+        
+        // Obtener el tipo y nombre legible
+        const seleccionado = document.querySelector('input[name="tipo"]:checked');
+        const tipoNombres = { negocio: 'Negocio 🏪', profesional: 'Profesional ✂️', cliente: 'Cliente 👤' };
+        const tipoNombre = seleccionado ? (tipoNombres[seleccionado.value] || seleccionado.value) : 'Cliente';
+        
+        // Actualizar texto del modal
+        document.getElementById('modalTipoCuenta').textContent = tipoNombre;
+        
+        // Mostrar modal
+        confirmModal.show();
+    });
+    
+    // Confirmar → redirigir a Google
+    document.getElementById('confirmGoogleBtn').addEventListener('click', function() {
+        confirmModal.hide();
+        window.location.href = googleBtn.href;
+    });
 });
 </script>
 {% endblock %} 

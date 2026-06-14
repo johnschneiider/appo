@@ -4,9 +4,6 @@
 {% block title %}Appo — Gestiona tu barbería sin llamadas, sin papel{% endblock %}
 
 {% block content %}
-<!-- ── PARTICLES CANVAS ── -->
-<canvas id="particles-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>
-
 <style>
   /* ── HERO ── */
   .hero-section {
@@ -51,15 +48,16 @@
     overflow: hidden;
     position: relative;
     padding: 14px 0;
-    margin-bottom: 56px;
+    margin: 0 auto 56px;
     z-index: 1;
+    max-width: 860px; /* Homologado con calendar-section y caso-section */
   }
   .ticker-wrap::before,
   .ticker-wrap::after {
     content: '';
     position: absolute;
     top: 0; bottom: 0;
-    width: 80px;
+    width: 100px; /* Fade más pronunciado */
     z-index: 2;
     pointer-events: none;
   }
@@ -159,6 +157,8 @@
   .trust-section {
     padding: 0 0 64px;
     text-align: center;
+    max-width: 860px; /* Homologado */
+    margin: 0 auto;
   }
   .trust-title {
     font-size: 1.1rem;
@@ -176,7 +176,7 @@
     content: '';
     position: absolute;
     top: 0; bottom: 0;
-    width: 60px;
+    width: 100px; /* Fade más pronunciado */
     z-index: 2;
     pointer-events: none;
   }
@@ -203,11 +203,17 @@
 
   /* ── PRICING CARD ── */
   .pricing-section {
-    max-width: 700px;
+    max-width: 1000px;
     margin: 0 auto 72px;
     padding: 0 20px;
     position: relative;
     z-index: 1;
+  }
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 30px;
+    margin-top: 40px;
   }
   .pricing-section-label {
     text-align: center;
@@ -229,12 +235,24 @@
     border: 2px solid rgba(19,58,127,0.12);
     box-shadow: 0 20px 60px rgba(19,58,127,0.10);
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .pricing-card.featured {
+    border-color: #133A7F;
+    transform: scale(1.03);
+    z-index: 2;
   }
   .pricing-card-header {
-    background: linear-gradient(135deg, #133A7F 0%, #1E5BC6 100%);
-    color: #fff;
+    background: #f8fafc;
+    color: #0d1b2a;
     padding: 28px 32px 22px;
     text-align: center;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .pricing-card.featured .pricing-card-header {
+    background: linear-gradient(135deg, #133A7F 0%, #1E5BC6 100%);
+    color: #fff;
   }
   .pricing-card-header h3 {
     font-size: 1.25rem;
@@ -448,133 +466,152 @@
 <section class="pricing-section">
   <div class="pricing-section-label">
     <h2>Todo lo que necesitas, <span style="color:#133A7F;">desde el primer día</span></h2>
-    <p>Un solo plan. Sin letra pequeña. Sin cobro inicial.</p>
+    <p>Elige el plan que mejor se adapte a tu crecimiento.</p>
   </div>
-  <div class="pricing-card">
-    <div class="pricing-card-header">
-      <h3>Plan Barbería · Todo incluido</h3>
-      <span class="badge-trial"><i class="bi bi-gift-fill"></i> {{ dias_trial }} días gratis</span>
+
+  <div class="pricing-grid">
+    <!-- Capa Gratuita (Free Tier) -->
+    <div class="pricing-card">
+      <div class="pricing-card-header">
+        <h3>Capa Gratuita</h3>
+        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 fw-bold" style="font-size: 0.75rem;">
+          <i class="bi bi-star-fill"></i> Para siempre
+        </span>
+      </div>
+      <div class="pricing-benefits-table" style="flex-grow: 1;">
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-people"></i> Todos los barberos que necesites</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-calendar3"></i> Agenda y calendario de reservas</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-link-45deg"></i> Tu propio link de reservas</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-clock"></i> Recibe citas 24/7 sin WhatsApp</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-scissors"></i> Lista de servicios y precios</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-phone"></i> Acceso desde cualquier dispositivo</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row text-muted" style="opacity: 0.6;">
+          <span class="benefit-desc"><i class="bi bi-whatsapp"></i> Recordatorios por WhatsApp</span>
+          <span class="benefit-check" style="background: #fee2e2; border-color: #ef4444;"><i class="bi bi-x-lg" style="color: #ef4444;"></i></span>
+        </div>
+        <div class="benefit-row text-muted" style="opacity: 0.6;">
+          <span class="benefit-desc"><i class="bi bi-shield-lock"></i> Bloqueo de clientes incumplidos</span>
+          <span class="benefit-check" style="background: #fee2e2; border-color: #ef4444;"><i class="bi bi-x-lg" style="color: #ef4444;"></i></span>
+        </div>
+        <div class="benefit-row text-muted" style="opacity: 0.6;">
+          <span class="benefit-desc"><i class="bi bi-cash-coin"></i> Cálculo automático de comisiones</span>
+          <span class="benefit-check" style="background: #fee2e2; border-color: #ef4444;"><i class="bi bi-x-lg" style="color: #ef4444;"></i></span>
+        </div>
+        <div class="benefit-row text-muted" style="opacity: 0.6;">
+          <span class="benefit-desc"><i class="bi bi-graph-up-arrow"></i> Reportes y estadísticas avanzadas</span>
+          <span class="benefit-check" style="background: #fee2e2; border-color: #ef4444;"><i class="bi bi-x-lg" style="color: #ef4444;"></i></span>
+        </div>
+        <div class="benefit-row text-muted" style="opacity: 0.6;">
+          <span class="benefit-desc"><i class="bi bi-megaphone"></i> Campañas de fidelización (SMS)</span>
+          <span class="benefit-check" style="background: #fee2e2; border-color: #ef4444;"><i class="bi bi-x-lg" style="color: #ef4444;"></i></span>
+        </div>
+        <div class="benefit-row text-muted" style="opacity: 0.6;">
+          <span class="benefit-desc"><i class="bi bi-robot"></i> Asistente de Agenda Automático</span>
+          <span class="benefit-check" style="background: #fee2e2; border-color: #ef4444;"><i class="bi bi-x-lg" style="color: #ef4444;"></i></span>
+        </div>
+      </div>
+      <div class="pricing-card-footer">
+        <div class="pricing-price">
+          <span class="currency">$</span><span class="amount">0</span>
+          <span class="period"> {{ moneda }} / para siempre</span>
+        </div>
+        <p class="pricing-note">Empieza ya, sin tarjeta de crédito</p>
+        <a href="{% url 'cuentas:registro_unificado' %}?tipo=negocio&plan=esencial" class="pricing-cta" style="background: #1e293b;">
+          Crear cuenta gratis <i class="bi bi-arrow-right ms-2"></i>
+        </a>
+      </div>
     </div>
-    <div class="pricing-benefits-table">
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-calendar3"></i> Agenda digital para todos tus barberos</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+
+    <!-- Plan Barbería (Pro) -->
+    <div class="pricing-card featured">
+      <div class="pricing-card-header">
+        <h3>Plan Pro · Negocio Real</h3>
+        <span class="badge-trial"><i class="bi bi-gift-fill"></i> {{ dias_trial }} días gratis</span>
       </div>
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-link-45deg"></i> Link público de reservas para tus clientes</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+      <div class="pricing-benefits-table" style="flex-grow: 1;">
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-magic"></i> IA que llena tu agenda un 40% más</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-shield-check"></i> Adiós inasistencias: Lista Negra y Recuperación Automática</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-graph-up-arrow"></i> Estadísticas reales de crecimiento</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-whatsapp"></i> Recordatorios automáticos WhatsApp</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-people"></i> Agenda para múltiples barberos</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-calendar3"></i> Calendario Interactivo de Reservas</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-cash-coin"></i> Comisiones de barberos al día</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-star"></i> Perfil Pro: Fotos y calificaciones</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-megaphone"></i> Marketing: Promociones por SMS/Email</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-lightning-charge"></i> Soporte VIP por WhatsApp</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-check-all"></i> Sin contratos ni permanencia</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
+        <div class="benefit-row">
+          <span class="benefit-desc"><i class="bi bi-cloud-upload"></i> Backup diario de tu base de clientes</span>
+          <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+        </div>
       </div>
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-clock"></i> Reservas online 24/7 sin llamadas</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
+      <div class="pricing-card-footer">
+        <div class="pricing-price">
+          <span class="currency">$</span><span class="amount">{{ precio_mensual|floatformat:0 }}</span>
+          <span class="period"> {{ moneda }} / barbero · mes</span>
+        </div>
+        <p class="pricing-note">Todo lo que necesitas para escalar</p>
+        <a href="{% url 'cuentas:pricing_page' %}" class="pricing-cta">
+          Probar {{ dias_trial }} días gratis <i class="bi bi-arrow-right ms-2"></i>
+        </a>
       </div>
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-scissors"></i> Servicios y tarifas configurables</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
-      </div>
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-bar-chart-line"></i> Panel de métricas y estadísticas</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
-      </div>
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-person-x"></i> Gestión de inasistencias y no-shows</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
-      </div>
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-calendar-x"></i> Días de descanso y disponibilidad por barbero</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
-      </div>
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-cash-stack"></i> Nómina básica integrada</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
-      </div>
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-phone"></i> Acceso desde cualquier dispositivo</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
-      </div>
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-headset"></i> Soporte digital personalizado</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
-      </div>
-      <div class="benefit-row">
-        <span class="benefit-desc"><i class="bi bi-x-circle"></i> Sin contratos ni permanencia mínima</span>
-        <span class="benefit-check"><i class="bi bi-check-lg"></i></span>
-      </div>
-    </div>
-    <div class="pricing-card-footer">
-      <div class="pricing-price">
-        <span class="currency">$</span><span class="amount">{{ precio_mensual|floatformat:0 }}</span>
-        <span class="period"> {{ moneda }} / barbero · mes</span>
-      </div>
-      <p class="pricing-note">Pagas solo por los barberos activos · Cancela cuando quieras</p>
-      <a href="{% url 'cuentas:pricing_page' %}" class="pricing-cta">
-        Empezar {{ dias_trial }} días gratis <i class="bi bi-arrow-right ms-2"></i>
-      </a>
-      <p class="pricing-disclaimer">Sin tarjeta de crédito · Sin cobro inicial · Cancela antes del primer cargo</p>
     </div>
   </div>
 </section>
 
 <script>
 // ── PARTICLES ──
-(function() {
-  const canvas = document.getElementById('particles-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  let W, H, particles = [];
-  const COLOR = '19,58,127'; // #133A7F brand color RGB
-  const COUNT = 55;
-
-  function resize() {
-    W = canvas.width = window.innerWidth;
-    H = canvas.height = document.body.scrollHeight;
-  }
-
-  function rand(min, max) { return Math.random() * (max - min) + min; }
-
-  function createParticle() {
-    return {
-      x: rand(0, W),
-      y: rand(0, H),
-      r: rand(1.5, 4),
-      dx: rand(-0.4, 0.4),
-      dy: rand(-0.5, -0.15),
-      alpha: rand(0.08, 0.22)
-    };
-  }
-
-  function init() {
-    resize();
-    particles = [];
-    for (let i = 0; i < COUNT; i++) particles.push(createParticle());
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-    for (const p of particles) {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${COLOR},${p.alpha})`;
-      ctx.fill();
-      p.x += p.dx;
-      p.y += p.dy;
-      // wrap around
-      if (p.y < -10) { p.y = H + 10; p.x = rand(0, W); }
-      if (p.x < -10) p.x = W + 10;
-      if (p.x > W + 10) p.x = -10;
-    }
-    requestAnimationFrame(draw);
-  }
-
-  init();
-  draw();
-
-  let resizeTimer;
-  window.addEventListener('resize', function() {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(init, 200);
-  });
-})();
 </script>
 
 {% endblock %}

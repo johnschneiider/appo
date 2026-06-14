@@ -568,6 +568,8 @@ class Reserva(models.Model):
         """
         Método privado para crear notificaciones para el cliente
         """
+        if not self.cliente:
+            return  # Reservas sin cliente (datos legacy) - ignorar
         NotificacionCliente.objects.create(
             cliente=self.cliente,
             tipo=tipo,
@@ -754,3 +756,75 @@ class BloqueoCliente(models.Model):
             activo=True
         )
         return bloqueo
+
+class RecuperacionCliente(models.Model):
+    """
+    Tracking anti-spam del sistema Win-Back (recuperación de clientes).
+    Registra cada intento de recuperación enviado por WhatsApp para:
+      - evitar reenviar al mismo cliente dentro de una ventana,
+      - medir respuesta y reagende (conversión).
+    Tipos:
+      - no_show:  cliente con inasistencia reciente → invitar a reagendar.
+      - inactivo: cliente que lleva varios días sin peluquearse → recordar que toca cita.
+    """
+    TIPO_CHOICES = [
+        ('no_show', 'No-show (inasistencia)'),
+        ('inactivo', 'Inactivo (toca peluquearse)'),
+    ]
+
+    cliente = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='recuperaciones',
+        null=True, blank=True,
+    )
+    cliente_provisional = models.ForeignKey(
+        ClienteProvisional,
+        on_delete=models.CASCADE,
+        related_name='recuperaciones',
+        null=True, blank=True,
+    )
+    negocio = models.ForeignKey(
+        Negocio,
+        on_delete=models.CASCADE,
+        related_name='recuperaciones',
+    )
+    # Reserva que originó el intento (para no_show); opcional para inactivo
+    reserva_origen = models.ForeignKey(
+        'Reserva',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='recuperaciones',
+    )
+    telefono = models.CharField(max_length=20, blank=True, help_text='Teléfono al que se envió')
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    fecha_envio = models.DateTimeField(auto_now_add=True)
+    enviado_ok = models.BooleanField(default=False, help_text='El envío por WhatsApp fue exitoso')
+    respondio = models.BooleanField(default=False, help_text='El cliente respondió al mensaje')
+    reagendo = models.BooleanField(default=False, help_text='El cliente volvió a reservar tras el mensaje')
+    opt_out = models.BooleanField(default=False, help_text='El cliente pidió no recibir más mensajes')
+    detalle = models.TextField(blank=True, help_text='Notas/errores del envío')
+
+    class Meta:
+        verbose_name = 'Recuperación de Cliente (Win-Back)'
+        verbose_name_plural = 'Recuperaciones de Clientes (Win-Back)'
+        ordering = ['-fecha_envio']
+        indexes = [
+            models.Index(fields=['negocio', 'tipo', 'fecha_envio']),
+            models.Index(fields=['telefono', 'fecha_envio']),
+            models.Index(fields=['cliente', 'tipo']),
+            models.Index(fields=['cliente_provisional', 'tipo']),
+        ]
+
+    def __str__(self):
+        nombre = (self.cliente.get_full_name() or self.cliente.username) if self.cliente else (
+            self.cliente_provisional.nombre if self.cliente_provisional else self.telefono
+        )
+        return f"{nombre} - {self.get_tipo_display()} ({self.fecha_envio:%Y-%m-%d})"
+
+    @classmethod
+    def opt_out_telefono(cls, telefono):
+        """True si ese teléfono pidió alguna vez no recibir más win-backs."""
+        if not telefono:
+            return False
+        return cls.objects.filter(telefono=telefono, opt_out=True).exists()

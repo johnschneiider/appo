@@ -199,6 +199,11 @@
     <span class="step-badge"><i class="bi bi-rocket-takeoff-fill"></i> Paso 1 de 2 — Crea tu cuenta</span>
     <h1>Empieza gratis hoy</h1>
     <p>{{ dias_trial }} días sin cobro. Configura tu barbería en minutos.</p>
+    <div class="mt-2">
+      <a href="{% url 'cuentas:registro_unificado' %}?tipo=negocio&plan=esencial" class="text-muted small fw-semibold text-decoration-none">
+        <i class="bi bi-arrow-left"></i> O empieza con la Capa Gratuita (para siempre)
+      </a>
+    </div>
   </div>
 
   {% if messages %}

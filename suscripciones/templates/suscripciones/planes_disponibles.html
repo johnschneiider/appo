@@ -773,6 +773,64 @@
 
     <div class="planes-grid-container">
         <div class="planes-grid" id="planesGrid">
+            <!-- Plan Gratuito -->
+            <div class="plan-card-disponible" data-categoria="reservas" data-precio="0" data-duracion="0">
+                <div class="plan-header-disponible">
+                    <div class="negocio-info">
+                        <div class="negocio-avatar">
+                            <div style="font-size: 1.5rem;">📅</div>
+                        </div>
+                        <div class="negocio-details">
+                            <h4>Capa Gratuita</h4>
+                            <p class="negocio-ubicacion">Acceso Gratuito</p>
+                            <p class="negocio-categoria">
+                                <span class="categoria-badge" style="background: #28a745;">RESERVAS</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="plan-content-disponible">
+                    <h3 class="plan-nombre">Solo Reservas</h3>
+                    <p class="plan-descripcion">Digitaliza tu agenda hoy mismo. Sin costos fijos, ideal para empezar.</p>
+                    
+                    <div class="plan-precio-disponible">
+                        <div class="precio-principal">
+                            <div class="precio-info">
+                                <span class="precio-monto">$0</span>
+                                <span class="precio-periodo">/siempre</span>
+                            </div>
+                        </div>
+                        
+                        <div class="precio-features">
+                            <div class="feature-item">
+                                <span>Sin tarjetas</span>
+                            </div>
+                            <div class="feature-item">
+                                <span>Agenda ilimitada</span>
+                            </div>
+                            <div class="feature-item">
+                                <span>Perfil público</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="plan-beneficios-disponible">
+                        <h6>Beneficios incluidos:</h6>
+                        <ul>
+                            <li>Gestión de citas 24/7</li>
+                            <li>Notificaciones básicas</li>
+                            <li>Panel de administración</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="plan-acciones-disponible">
+                    <a href="/cuentas/registro/?tipo=negocio&plan=free" class="btn btn-suscribirse" style="background: #28a745; border-color: #28a745; text-decoration: none; display: flex; align-items: center; justify-content: center;">Empezar Gratis</a>
+                    <button class="btn btn-outline-primary" onclick="verDetallesPlan('free')">Saber más</button>
+                </div>
+            </div>
+
             {% for plan in planes %}
             <div class="plan-card-disponible" 
                  data-categoria="{{ plan.negocio.categoria }}" 

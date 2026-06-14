@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.forms import AuthenticationForm
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.csrf import csrf_protect, csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.urls import reverse
@@ -39,9 +39,12 @@ from negocios.models import Negocio
 
 logger = logging.getLogger(__name__)
 
-@ratelimit(key='ip', rate='1000/h', method='POST', block=True)
+@ratelimit(key='ip', rate='30/h', method='POST', block=True)  # Rate limit ajustado
 def registro_unificado(request):
     """Vista unificada para registro con selección obligatoria de tipo de cuenta"""
+    # Capturar tipo sugerido para pre-selección en el template
+    tipo_sugerido = request.GET.get('tipo')
+    
     if request.method == 'POST':
         form = RegistroUnificadoForm(request.POST)
         if form.is_valid():
@@ -57,30 +60,56 @@ def registro_unificado(request):
                     ip_address=request.META.get('REMOTE_ADDR')
                 )
                 
-                # Iniciar sesión automáticamente con backend específico
+                # Iniciar sesión automáticamente
                 login(request, user, backend='cuentas.backends.CaseInsensitiveAuthBackend')
                 
-                # Redirigir a next si existe y es una URL interna segura
+                # Lógica de Trial Automático / Plan Esencial para Negocios (Barberías)
+                if user.tipo == 'negocio':
+                    plan_elegido = request.GET.get('plan') or request.POST.get('plan')
+                    
+                    trial_inicio = timezone.now()
+                    trial_fin = trial_inicio + timedelta(days=30)
+                    
+                    precio = Decimal("49000.00")
+                    notas = 'Trial de 30 días activado automáticamente tras registro rápido.'
+                    estado = 'trial_activo'
+                    
+                    if plan_elegido == 'esencial':
+                        precio = Decimal("0.00")
+                        notas = 'Capa Gratuita activada desde el registro.'
+                        estado = 'metodo_guardado' # No requiere checkout de trial
+                        trial_fin = None # No expira
+                    
+                    # Crear intención de cobro con la configuración del plan
+                    BusinessCheckoutIntent.objects.get_or_create(
+                        usuario=user,
+                        defaults={
+                            'nombre_negocio': f"Negocio de {user.username}",
+                            'email_contacto': user.email,
+                            'telefono_contacto': user.telefono or "",
+                            'numero_barberos': 1,
+                            'precio_mensual': precio,
+                            'trial_inicio': trial_inicio,
+                            'trial_fin': trial_fin,
+                            'payu_state': estado,
+                            'notas': notas
+                        }
+                    )
+                
+                # Redirigir según el tipo
                 next_url = request.POST.get('next') or request.GET.get('next')
                 if next_url and next_url.startswith('/'):
-                    if user.tipo == 'negocio':
-                        messages.success(request, f'¡Bienvenido a Melissa, {user.username}! Tu cuenta de negocio ha sido creada exitosamente.')
-                    elif user.tipo == 'profesional':
-                        messages.success(request, f'¡Bienvenido a Melissa, {user.username}! Ahora completa tu perfil profesional.')
-                    else:
-                        messages.success(request, f'¡Bienvenido a Melissa, {user.username}! Tu cuenta ha sido creada exitosamente.')
                     return redirect(next_url)
                 
-                # Mensaje de bienvenida según el tipo
-                if user.tipo == 'cliente':
-                    messages.success(request, f'¡Bienvenido a Melissa, {user.username}! Tu cuenta de cliente ha sido creada exitosamente.')
-                    return redirect('inicio')
-                elif user.tipo == 'negocio':
-                    messages.success(request, f'¡Bienvenido a Melissa, {user.username}! Tu cuenta de negocio ha sido creada exitosamente.')
+                if user.tipo == 'negocio':
+                    messages.success(request, f'¡Bienvenido {user.username}! Tu barbería ha sido creada con 30 días de trial gratis.')
                     return redirect('negocios:mis_negocios')
                 elif user.tipo == 'profesional':
-                    messages.success(request, f'¡Bienvenido a Melissa, {user.username}! Ahora completa tu perfil profesional.')
+                    messages.success(request, f'¡Bienvenido {user.username}! Completa tu perfil para empezar.')
                     return redirect('profesionales:completar_perfil')
+                else:
+                    messages.success(request, f'¡Bienvenido {user.username}! Cuenta creada exitosamente.')
+                    return redirect('inicio')
                 
             except Exception as e:
                 log_error(
@@ -89,15 +118,24 @@ def registro_unificado(request):
                     user=None,
                     context={"form_data": request.POST}
                 )
-                messages.error(request, 'Hubo un error al crear tu cuenta. Por favor, intenta nuevamente.')
+                messages.error(request, 'Error al crear la cuenta. Intenta de nuevo.')
     else:
-        form = RegistroUnificadoForm()
+        form = RegistroUnificadoForm(initial={'tipo': tipo_sugerido} if tipo_sugerido else None)
     
-    return render(request, 'cuentas/registro_unificado.html', {'form': form})
+    return render(request, 'cuentas/registro_unificado.html', {'form': form, 'tipo_sugerido': tipo_sugerido})
 
 # @method_decorator(csrf_protect, name='dispatch')
 class LoginPersonalizadoView(View):
     """Vista personalizada para login con redirección inteligente según tipo de usuario"""
+    
+    def get_client_ip(self, request):
+        """Misma lógica que RateLimitMiddleware para obtener IP del cliente"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
     
     def get(self, request):
         if request.user.is_authenticated:
@@ -114,6 +152,10 @@ class LoginPersonalizadoView(View):
                 user = form.get_user()
                 if user is not None:
                     login(request, user)
+                    
+                    # Resetear rate limit para esta IP tras login exitoso
+                    ip = self.get_client_ip(request)
+                    cache.delete(f'login_{ip}')
                     
                     # Log del login exitoso
                     log_user_activity(
@@ -160,13 +202,13 @@ class LoginPersonalizadoView(View):
     
     def redirect_by_user_type(self, user):
         if user.is_superuser or getattr(user, 'tipo', None) == 'super_admin':
-            return redirect('dashboard_super_admin')
+            return redirect('/leads/')
         elif getattr(user, 'tipo', None) == 'cliente':
             return redirect('inicio')  # Redirige a la raíz
         elif getattr(user, 'tipo', None) == 'profesional':
             return redirect('profesionales:panel')
         elif getattr(user, 'tipo', None) == 'negocio':
-            return redirect('negocios:panel')  # Redirige al panel de negocio
+            return redirect('negocios:mis_negocios')  # Redirige al panel de negocio
         else:
             return redirect('inicio')
 
@@ -245,30 +287,34 @@ def cambiar_tipo_usuario(request):
 @login_required
 def seleccionar_tipo_cuenta_google(request):
     """
-    Vista para que usuarios que se registraron con Google seleccionen su tipo de cuenta
+    Vista para que usuarios que se registraron con Google seleccionen su tipo de cuenta.
+    Soporta: cliente, negocio, profesional.
     """
     # Verificar si el usuario ya tiene un tipo asignado
     if hasattr(request.user, 'tipo') and request.user.tipo:
-        # Si ya tiene tipo, redirigir al dashboard correspondiente
         if request.user.tipo == 'cliente':
             return redirect('inicio')
+        elif request.user.tipo == 'profesional':
+            return redirect('profesionales:completar_perfil')
         else:
             return redirect('negocios:mis_negocios')
 
     if request.method == 'POST':
         tipo = request.POST.get('tipo')
-        if tipo in ['cliente', 'negocio']:
-            # Asignar tipo al usuario
+        if tipo in ['cliente', 'negocio', 'profesional']:
             request.user.tipo = tipo
             request.user.save()
 
-            messages.success(request, f'¡Bienvenido a Melissa! Tu cuenta ha sido configurada como {tipo}.')
+            messages.success(request, f'¡Bienvenido a Appo! Tu cuenta ha sido configurada como {tipo}.')
             
-            # Redirigir al dashboard correspondiente
             if tipo == 'cliente':
                 return redirect('inicio')
+            elif tipo == 'profesional':
+                return redirect('profesionales:completar_perfil')
             else:
                 return redirect('negocios:mis_negocios')
+        else:
+            messages.error(request, 'Selecciona un tipo de cuenta válido.')
 
     return render(request, 'cuentas/seleccionar_tipo_cuenta.html')
 
@@ -505,7 +551,7 @@ def redireccion_dashboard(request):
     user = request.user
     # Si es superusuario de Django o super_admin personalizado
     if user.is_superuser or getattr(user, 'tipo', None) == 'super_admin':
-        return redirect('dashboard_super_admin')
+        return redirect('/leads/')
     # Si es cliente
     elif getattr(user, 'tipo', None) == 'cliente':
         return redirect('clientes:dashboard')
@@ -514,7 +560,7 @@ def redireccion_dashboard(request):
         return redirect('profesionales:panel')
     # Si es negocio
     elif getattr(user, 'tipo', None) == 'negocio':
-        return redirect('negocios:panel')
+        return redirect('negocios:mis_negocios')
     # Por defecto, home
     return redirect('inicio')
 
@@ -1147,7 +1193,7 @@ def ver_logs_servidor(request):
             user=request.user
         )
         messages.error(request, 'Error al cargar los logs del servidor.')
-        return redirect('dashboard_super_admin')
+        return redirect('/leads/')
 
 @ratelimit(key='ip', rate=lambda: get_rate_limit_config('test_rate', '10/m'), method=['GET', 'POST'])
 def test_rate_limit(request):

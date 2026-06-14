@@ -10,21 +10,21 @@ logger = logging.getLogger(__name__)
 
 def get_whatsapp_service():
     """
-    Obtiene el servicio de WhatsApp disponible (Meta o Twilio)
-    Prioriza Meta WhatsApp si está habilitado, sino usa Twilio
+    Obtiene el servicio de WhatsApp disponible.
+    Prioridad: WebJS (sesión real) > Twilio (API).
+    Meta WhatsApp deshabilitado temporalmente.
     """
-    # Intentar Meta WhatsApp primero SOLO si está habilitado (evita warnings en logs)
-    if getattr(settings, 'META_WHATSAPP_ENABLED', False):
-        try:
-            from .meta_whatsapp_service import meta_whatsapp_service
-            if meta_whatsapp_service.is_enabled():
-                return meta_whatsapp_service
-        except ImportError:
-            pass
-        except Exception as e:
-            logger.warning(f"Error inicializando Meta WhatsApp: {e}")
+    # 1. WebJS (whatsapp-web.js) — misma sesión que el CRM, sin templates
+    try:
+        from .webjs_whatsapp_service import webjs_whatsapp_service
+        if webjs_whatsapp_service.is_enabled():
+            return webjs_whatsapp_service
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning(f"Error inicializando WebJS WhatsApp: {e}")
     
-    # Fallback a Twilio
+    # 2. Fallback a Twilio (solo si WebJS no disponible)
     try:
         from .twilio_whatsapp_service import twilio_whatsapp_service
         if twilio_whatsapp_service.is_enabled():
@@ -78,14 +78,16 @@ def procesar_reservas_pasadas():
     ahora = get_current_time_in_timezone()
     reservas_pasadas = Reserva.objects.filter(
         fecha__lt=ahora.date(),
-        estado__in=['pendiente', 'confirmado']
+        estado__in=['pendiente', 'confirmado'],
+        cliente__isnull=False  # Solo procesar reservas con cliente asignado
     )
     
     # También incluir reservas de hoy que ya pasaron la hora
     reservas_hoy_pasadas = Reserva.objects.filter(
         fecha=ahora.date(),
         hora_fin__lt=ahora.time(),
-        estado__in=['pendiente', 'confirmado']
+        estado__in=['pendiente', 'confirmado'],
+        cliente__isnull=False
     )
     
     todas_reservas_pasadas = reservas_pasadas | reservas_hoy_pasadas

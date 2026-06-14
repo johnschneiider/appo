@@ -132,6 +132,10 @@ def crear_transaccion_al_completar(sender, instance, created, **kwargs):
                     # Marcar la reserva como pagada si se creó la transacción
                     if not instance.pagado:
                         Reserva.objects.filter(pk=instance.pk).update(pagado=True)
+                    
+                    # ── Calcular comisión automática del profesional ──
+                    if instance.profesional and instance.total:
+                        _calcular_comision_profesional(instance)
             except Exception as e:
                 logger.error(f"Error al crear transacción para reserva {instance.pk}: {e}")
 
@@ -192,3 +196,46 @@ def actualizar_resumen_mensual(sender, instance, **kwargs):
         
     except Exception as e:
         logger.error(f"Error al actualizar resumen mensual: {e}") 
+def _calcular_comision_profesional(reserva):
+    """Calcula y registra la comisión del profesional al completar una reserva."""
+    from negocios.models import ComisionProfesional
+    from profesionales.models import Notificacion
+    
+    try:
+        comision_config = ComisionProfesional.objects.filter(
+            profesional=reserva.profesional,
+            negocio=reserva.peluquero,
+            activa=True
+        ).first()
+        
+        if not comision_config:
+            return
+        
+        if comision_config.tipo_comision == 'porcentaje':
+            monto = reserva.total * comision_config.valor / 100
+        else:
+            monto = comision_config.valor  # Monto fijo
+        
+        from clientes.models import TransaccionNegocio
+        TransaccionNegocio.objects.create(
+            negocio=reserva.peluquero,
+            profesional=reserva.profesional,
+            reserva=reserva,
+            tipo='comision_profesional',
+            monto=monto,
+            descripcion=f'Comisión: {reserva.profesional.nombre_completo} - {reserva.fecha}',
+            fecha=timezone.now(),
+        )
+        
+        # Notificar al profesional
+        Notificacion.objects.create(
+            profesional=reserva.profesional,
+            tipo='comision',
+            titulo='💰 Nueva comisión generada',
+            mensaje=f'Has generado ${monto:,.0f} COP de comisión por la reserva del {reserva.fecha}.',
+            url_relacionada='/profesionales/panel/',
+        )
+        
+        logger.info(f'Comisión calculada: {reserva.profesional.nombre_completo} → ${monto:,.0f}')
+    except Exception as e:
+        logger.error(f'Error calculando comisión: {e}')

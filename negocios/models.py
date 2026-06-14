@@ -46,8 +46,24 @@ class Negocio(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     activo = models.BooleanField(default=True)
     
+    # ── Feature flags controlados por SaaSSubscription ──
+    feature_whatsapp = models.BooleanField(default=False, verbose_name='Recordatorios WhatsApp')
+    feature_blacklist = models.BooleanField(default=False, verbose_name='Lista Negra')
+    feature_comisiones = models.BooleanField(default=False, verbose_name='Comisiones automáticas')
+    feature_estadisticas = models.BooleanField(default=False, verbose_name='Estadísticas avanzadas')
+    feature_marketing = models.BooleanField(default=False, verbose_name='Campañas SMS/Email')
+    feature_asistente = models.BooleanField(default=False, verbose_name='Asistente de Agenda')
+    feature_soporte_vip = models.BooleanField(default=False, verbose_name='Soporte VIP')
+    feature_backup = models.BooleanField(default=False, verbose_name='Backup diario')
+    
     def __str__(self):
         return self.nombre
+    
+    @property
+    def matriculaciones_aprobadas(self):
+        """Devuelve las matriculaciones aprobadas (profesionales activos del negocio)"""
+        from profesionales.models import Matriculacion
+        return Matriculacion.objects.filter(negocio=self, estado='aprobada').select_related('profesional')
 
 
 Usuario = get_user_model()
@@ -146,7 +162,7 @@ class ServicioNegocio(models.Model):
     negocio = models.ForeignKey('Negocio', on_delete=models.CASCADE, related_name='servicios_negocio')
     servicio = models.ForeignKey(Servicio, on_delete=models.CASCADE)
     duracion = models.PositiveIntegerField(default=30, help_text='Duración en minutos')
-    precio = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    precio = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, default=25000)
     activo = models.BooleanField(default=True, help_text='¿El servicio está activo/ofrecido por el negocio?')
 
     class Meta:

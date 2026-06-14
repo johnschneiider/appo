@@ -54,4 +54,5 @@ urlpatterns = [
     path('<int:negocio_id>/api/reserva/<int:reserva_id>/estado/', views.api_cambiar_estado_reserva, name='api_cambiar_estado_reserva'),
     # API para actualizar hora de reserva (drag and drop)
     path('<int:negocio_id>/api/reserva/<int:reserva_id>/actualizar-hora/', views.api_actualizar_hora_reserva, name='api_actualizar_hora_reserva'),
+    path("<int:negocio_id>/lista-negra/", views.lista_negra, name="lista_negra"),
 ]

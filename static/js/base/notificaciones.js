@@ -3,26 +3,15 @@ function actualizarBadgeNotificaciones(nuevoValor) {
   const countSpan = document.getElementById('notificacionesCount');
   const bell = document.getElementById('notificacionesBell');
   
-  // Debug: verificar si los elementos existen
-  console.log('actualizarBadgeNotificaciones llamado con:', nuevoValor);
-  console.log('countSpan existe:', !!countSpan);
-  console.log('bell existe:', !!bell);
-  
-  if (!countSpan || !bell) {
-    console.error('Elementos de notificaciones no encontrados');
-    return;
-  }
+  if (!countSpan || !bell) return;
   
   const valorAnterior = parseInt(countSpan.textContent) || 0;
-  console.log('Valor anterior:', valorAnterior, 'Nuevo valor:', nuevoValor);
   
   if (nuevoValor > 0) {
     countSpan.textContent = nuevoValor;
     // Usar Bootstrap d-none en lugar de display: flex
     countSpan.classList.remove('d-none');
-    console.log('Badge actualizado:', countSpan.textContent, 'Clases:', countSpan.className);
     
-    // Si hay nuevas notificaciones, mostrar animación
     if (nuevoValor > valorAnterior && valorAnterior > 0) {
       // Animación más llamativa para nuevas notificaciones
       countSpan.classList.add('bounce');
@@ -51,7 +40,6 @@ function actualizarBadgeNotificaciones(nuevoValor) {
   } else {
     countSpan.classList.add('d-none');
     countSpan.textContent = 0;
-    console.log('Badge ocultado');
   }
 }
 
@@ -89,27 +77,25 @@ function fetchMensajesNoLeidos() {
     .catch(() => {});
 }
 
-// Consulta periódica de notificaciones
+// Consulta periódica de notificaciones (solo usuarios autenticados)
 function fetchNotificaciones() {
-  console.log('Fetching notificaciones...');
   fetch('/cuentas/api/notificaciones/')
-    .then(resp => resp.json())
+    .then(resp => {
+      if (!resp.ok) return null;
+      const ct = resp.headers.get('content-type') || '';
+      if (ct.includes('text/html')) return null;
+      return resp.json();
+    })
     .then(data => {
-      console.log('Respuesta de notificaciones:', data);
-      if (typeof data.no_leidas !== 'undefined') {
-        const valorAnterior = parseInt(document.getElementById('notificacionesCount')?.textContent) || 0;
-        console.log('No leídas:', data.no_leidas, 'Valor anterior:', valorAnterior);
+      if (data && typeof data.no_leidas !== 'undefined') {
         actualizarBadgeNotificaciones(data.no_leidas);
         
-        // Mostrar notificación push si hay nuevas notificaciones
-        if (data.no_leidas > valorAnterior && data.no_leidas > 0) {
-                      mostrarNotificacionPush('Nueva notificación', 'Tienes una nueva notificación en APPO');
+        if (data.no_leidas > 0) {
+          mostrarNotificacionPush('Nueva notificación', 'Tienes una nueva notificación en APPO');
         }
       }
     })
-    .catch((error) => {
-      console.error('Error fetching notificaciones:', error);
-    });
+    .catch(() => {});
 }
 
 // Función para mostrar notificación push del navegador
@@ -130,37 +116,41 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-// Llamar al cargar y cada 60 segundos para reducir carga del servidor
-setInterval(fetchMensajesNoLeidos, 60000);
-setInterval(fetchNotificaciones, 60000);
-document.addEventListener('DOMContentLoaded', function() {
+// ── Polling inteligente: solo para usuarios autenticados ──
+// Detecta si la API devuelve JSON (autenticado) o HTML/redirect (no autenticado)
+// así evita errores de consola y tráfico innecesario en landing/login/registro
+
+function initPolling() {
+  // Primera llamada de prueba: si la API devuelve HTML → no autenticado, abortar
+  fetch('/cuentas/api/notificaciones/')
+    .then(resp => {
+      const ct = resp.headers.get('content-type') || '';
+      if (ct.includes('text/html') || resp.redirected) {
+        // No autenticado: no iniciar polling
+        return null;
+      }
+      // Autenticado: iniciar polling periódico
+      startPolling();
+      return resp.json();
+    })
+    .then(data => {
+      if (data && typeof data.no_leidas !== 'undefined') {
+        actualizarBadgeNotificaciones(data.no_leidas);
+      }
+    })
+    .catch(() => {});
+}
+
+function startPolling() {
   fetchMensajesNoLeidos();
-  fetchNotificaciones();
-  
-  // Test inicial para verificar que el badge funciona
-  setTimeout(() => {
-    console.log('Test inicial del badge...');
-    const countSpan = document.getElementById('notificacionesCount');
-    if (countSpan) {
-      console.log('Badge encontrado, probando visibilidad...');
-      countSpan.textContent = '1';
-      countSpan.classList.remove('d-none');
-      console.log('Badge actualizado:', countSpan.textContent, 'Clases:', countSpan.className);
-      
-      // Ocultar después de 3 segundos
-      setTimeout(() => {
-        countSpan.classList.add('d-none');
-        console.log('Badge ocultado');
-      }, 3000);
-    } else {
-      console.error('Badge no encontrado en el DOM');
-    }
-  }, 2000);
-});
+  setInterval(fetchMensajesNoLeidos, 60000);
+  setInterval(fetchNotificaciones, 60000);
+}
+
+document.addEventListener('DOMContentLoaded', initPolling);
 
 // Hook para integración con AJAX existente
 document.addEventListener('DOMContentLoaded', function() {
-  // Hook para notificaciones
   if (window.cargarNotificaciones) {
     const originalCargar = window.cargarNotificaciones;
     window.cargarNotificaciones = async function() {

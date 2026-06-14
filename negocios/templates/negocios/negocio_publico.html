@@ -991,8 +991,13 @@ body {
                     <i class="bi bi-clock"></i>
                 </div>
                 <h3>Horarios</h3>
-                <p>Lunes a Sábado: 9:00 - 19:00</p>
-                <p>Domingo: Cerrado</p>
+                {% if negocio.horario_atencion %}
+                    {% for dia, data in negocio.horario_atencion.items %}
+                        <p>{{ dia|capfirst }}: {{ data.inicio }} - {{ data.fin }}</p>
+                    {% endfor %}
+                {% else %}
+                    <p>Horario no configurado</p>
+                {% endif %}
             </div>
             
             <div class="negocio-card">
@@ -1114,7 +1119,11 @@ body {
                                 </span>
                                 <span class="precio">
                                     <i class="bi bi-currency-dollar"></i>
-                                    Desde ${{ servicio_negocio.precio_base }}
+                                    {% if servicio_negocio.precio %}
+                                        ${{ servicio_negocio.precio|floatformat:0 }}
+                                    {% else %}
+                                        Desde ${{ servicio_negocio.precio_base|default:"0" }}
+                                    {% endif %}
                                 </span>
                             </div>
                             <a href="{% url 'clientes:reservar_turno' negocio.id %}?servicio={{ servicio_negocio.id }}" class="btn-reservar">

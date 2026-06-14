@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Lista Negra — {{ negocio.nombre }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <nav aria-label="breadcrumb"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'negocios:mis_negocios' %}">Negocios</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'negocios:panel_negocio' negocio.id %}">{{ negocio.nombre }}</a></li>
+    <li class="breadcrumb-item active">Lista Negra</li>
+  </ol></nav>
+
+  <div class="card shadow-sm border-0 rounded-4">
+    <div class="card-header bg-danger text-white rounded-top-4 py-3">
+      <h5 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Clientes Bloqueados — {{ negocio.nombre }}</h5>
+    </div>
+    <div class="card-body">
+      {% if bloqueados %}
+      <p class="text-muted mb-3">{{ total_bloqueados }} cliente(s) con 2+ inasistencias. Se bloquean automáticamente de nuevas reservas.</p>
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead><tr><th>Cliente</th><th>Teléfono</th><th>Inasistencias</th><th>Última falta</th></tr></thead>
+          <tbody>
+          {% for b in bloqueados %}
+            <tr>
+              <td><i class="bi bi-person-x text-danger me-2"></i>{{ b.user.username }}</td>
+              <td>{{ b.user.telefono|default:"—" }}</td>
+              <td><span class="badge bg-danger">{{ b.inasistencias }}</span></td>
+              <td>{{ b.ultima.fecha|date:"d/m/Y"|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-4">
+        <i class="bi bi-emoji-smile text-success" style="font-size:3rem;"></i>
+        <p class="mt-3">¡Sin clientes bloqueados! Tus clientes tienen buen comportamiento.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

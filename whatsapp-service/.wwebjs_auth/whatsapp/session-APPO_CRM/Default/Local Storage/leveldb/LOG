@@ -1,0 +1,30 @@
+2026/06/11-10:22:28.384 216315 Reusing MANIFEST /var/www/appo.com.co/whatsapp-service/.wwebjs_auth/whatsapp/session-APPO_CRM/Default/Local Storage/leveldb/MANIFEST-000001
+2026/06/11-10:22:28.394 216315 Recovering log #21
+2026/06/11-10:22:28.394 216315 Reusing old log /var/www/appo.com.co/whatsapp-service/.wwebjs_auth/whatsapp/session-APPO_CRM/Default/Local Storage/leveldb/000021.log 
+2026/06/11-20:13:12.699 216317 Level-0 table #25: started
+2026/06/11-20:13:12.706 216317 Level-0 table #25: 13488 bytes OK
+2026/06/11-20:13:12.708 216317 Delete type=0 #21
+2026/06/12-15:22:24.221 216317 Level-0 table #27: started
+2026/06/12-15:22:24.234 216317 Level-0 table #27: 13980 bytes OK
+2026/06/12-15:22:24.240 216317 Delete type=0 #24
+2026/06/13-02:23:01.750 216317 Level-0 table #29: started
+2026/06/13-02:23:01.763 216317 Level-0 table #29: 12508 bytes OK
+2026/06/13-02:23:01.767 216317 Delete type=0 #26
+2026/06/13-02:23:01.770 216315 Compacting 4@0 + 1@1 files
+2026/06/13-02:23:01.775 216315 Generated table #30@0: 75 keys, 6591 bytes
+2026/06/13-02:23:01.776 216315 Compacted 4@0 + 1@1 files => 6591 bytes
+2026/06/13-02:23:01.777 216315 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/06/13-02:23:01.778 216315 Delete type=2 #25
+2026/06/13-02:23:01.778 216315 Delete type=2 #19
+2026/06/13-02:23:01.778 216315 Delete type=2 #27
+2026/06/13-02:23:01.778 216315 Delete type=2 #29
+2026/06/13-02:23:01.778 216315 Delete type=2 #22
+2026/06/13-11:22:52.759 216317 Level-0 table #32: started
+2026/06/13-11:22:52.789 216317 Level-0 table #32: 7350 bytes OK
+2026/06/13-11:22:52.794 216317 Delete type=0 #28
+2026/06/13-18:35:46.701 216317 Level-0 table #34: started
+2026/06/13-18:35:46.707 216317 Level-0 table #34: 8268 bytes OK
+2026/06/13-18:35:46.709 216317 Delete type=0 #31
+2026/06/13-23:30:32.981 216317 Level-0 table #36: started
+2026/06/13-23:30:32.986 216317 Level-0 table #36: 9021 bytes OK
+2026/06/13-23:30:32.988 216317 Delete type=0 #33

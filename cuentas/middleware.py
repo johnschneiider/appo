@@ -110,6 +110,12 @@ class RateLimitMiddleware(MiddlewareMixin):
         # Verificar si la ruta actual requiere rate limiting
         for route, config in sensitive_routes.items():
             if current_path.startswith(route):
+                # Solo aplicar rate limit a POST
+                if request.method != 'POST':
+                    # No aplicar rate limiting a métodos diferentes de POST
+                    # (GET carga página, OPTIONS preflight, etc.)
+                    continue
+                
                 if self.is_rate_limited(config['key'], config['rate']):
                     logger_security.warning(
                         f"Rate limit excedido: {ip} -> {current_path}",

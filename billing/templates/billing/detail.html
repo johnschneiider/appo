@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+{% block title %}Facturación — {{ negocio.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'negocios:mis_negocios' %}">Mis Negocios</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'negocios:panel_negocio' negocio.id %}">{{ negocio.nombre }}</a></li>
+      <li class="breadcrumb-item active">Facturación</li>
+    </ol>
+  </nav>
+
+  <div class="row">
+    <!-- Estado de suscripción -->
+    <div class="col-lg-6 mb-4">
+      <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-header {% if sub.is_active %}bg-success{% else %}bg-warning{% endif %} text-white rounded-top-4 py-3">
+          <h5 class="mb-0"><i class="bi bi-credit-card me-2"></i>Estado de Suscripción</h5>
+        </div>
+        <div class="card-body">
+          <dl class="row mb-0">
+            <dt class="col-sm-5">Plan</dt>
+            <dd class="col-sm-7">
+              <span class="badge {% if sub.plan == 'pro' %}bg-primary{% else %}bg-secondary{% endif %} fs-6">
+                {{ sub.get_plan_display }}
+              </span>
+            </dd>
+
+            <dt class="col-sm-5">Estado</dt>
+            <dd class="col-sm-7">
+              <span class="badge {% if sub.status == 'active' %}bg-success{% elif sub.status == 'trial' %}bg-info{% elif sub.status == 'expiring_soon' %}bg-warning{% else %}bg-danger{% endif %}">
+                {{ sub.get_status_display }}
+              </span>
+            </dd>
+
+            <dt class="col-sm-5">Barberos</dt>
+            <dd class="col-sm-7">{{ sub.numero_barberos }}</dd>
+
+            <dt class="col-sm-5">Valor mensual</dt>
+            <dd class="col-sm-7">${{ sub.amount_cop|floatformat:0 }} COP</dd>
+
+            <dt class="col-sm-5">Inicio</dt>
+            <dd class="col-sm-7">{{ sub.starts_at|date:"d/m/Y" }}</dd>
+
+            {% if sub.expires_at %}
+            <dt class="col-sm-5">Vence</dt>
+            <dd class="col-sm-7">
+              {{ sub.expires_at|date:"d/m/Y" }}
+              {% with days=sub.days_until_expiry %}
+                {% if days <= 7 and days >= 0 %}
+                  <span class="badge bg-warning ms-2">{{ days }} días</span>
+                {% elif days < 0 %}
+                  <span class="badge bg-danger ms-2">Vencida</span>
+                {% endif %}
+              {% endwith %}
+            </dd>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- Features -->
+    <div class="col-lg-6 mb-4">
+      <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-header bg-light rounded-top-4 py-3">
+          <h5 class="mb-0"><i class="bi bi-toggles me-2"></i>Funciones activas</h5>
+        </div>
+        <div class="card-body">
+          <ul class="list-unstyled mb-0">
+            <li class="mb-2">✅ Agenda y calendario</li>
+            <li class="mb-2">✅ Link público de reservas</li>
+            <li class="mb-2">✅ Reservas 24/7</li>
+            <li class="mb-2">✅ Lista de servicios y precios</li>
+            <li class="mb-2">{% if negocio.feature_whatsapp %}✅{% else %}❌{% endif %} Recordatorios WhatsApp</li>
+            <li class="mb-2">{% if negocio.feature_blacklist %}✅{% else %}❌{% endif %} Lista negra</li>
+            <li class="mb-2">{% if negocio.feature_comisiones %}✅{% else %}❌{% endif %} Comisiones automáticas</li>
+            <li class="mb-2">{% if negocio.feature_estadisticas %}✅{% else %}❌{% endif %} Estadísticas avanzadas</li>
+            <li class="mb-2">{% if negocio.feature_marketing %}✅{% else %}❌{% endif %} Campañas SMS/Email</li>
+            <li class="mb-2">{% if negocio.feature_asistente %}✅{% else %}❌{% endif %} Asistente de Agenda</li>
+            <li class="mb-2">{% if negocio.feature_soporte_vip %}✅{% else %}❌{% endif %} Soporte VIP</li>
+            <li class="mb-2">{% if negocio.feature_backup %}✅{% else %}❌{% endif %} Backup diario</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if sub.plan != 'pro' or sub.status == 'expired' %}
+  <!-- Acción de pago -->
+  <div class="row">
+    <div class="col-12 mb-4">
+      <div class="card shadow-sm border-0 rounded-4 bg-light">
+        <div class="card-body text-center py-4">
+          <h5 class="mb-2"><i class="bi bi-credit-card me-2"></i>Activar Plan Pro</h5>
+          <p class="text-muted mb-3">
+            {% if sub.status == 'expired' %}
+              Tu Plan Pro ha vencido. Reactívalo por 30 días más.
+            {% else %}
+              Sube a Plan Pro y desbloquea recordatorios WhatsApp, comisiones automáticas, estadísticas y más.
+            {% endif %}
+          </p>
+          <p class="fw-bold fs-4 text-primary mb-3">$49.000 COP / barbero · mes</p>
+          {% if sub.bold_payment_link %}
+            <a href="{{ sub.bold_payment_link }}" target="_blank" class="btn btn-success btn-lg px-5">
+              <i class="bi bi-shield-check me-2"></i>Pagar con Bold
+            </a>
+            <p class="text-muted small mt-2">Tarjeta · PSE · Nequi · Bancolombia</p>
+          {% else %}
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              El link de pago se generará cuando configures las llaves de Bold.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Historial de pagos -->
+  <div class="card shadow-sm border-0 rounded-4">
+    <div class="card-header bg-light rounded-top-4 py-3">
+      <h5 class="mb-0"><i class="bi bi-receipt me-2"></i>Historial de Pagos</h5>
+    </div>
+    <div class="card-body">
+      {% if payments %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Monto</th>
+                <th>Confirmado por</th>
+                <th>Notas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in payments %}
+              <tr>
+                <td>{{ p.paid_at|date:"d/m/Y" }}</td>
+                <td>${{ p.amount_cop|floatformat:0 }} COP</td>
+                <td>{{ p.confirmed_by.username|default:"—" }}</td>
+                <td>{{ p.notes|default:"—" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted mb-0">No hay pagos registrados aún.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

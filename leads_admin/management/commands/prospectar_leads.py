@@ -8,7 +8,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.conf import settings
 from leads_admin.models import Lead, LeadConversacion
-from leads_admin.prospector_agent import get_prospector_agent, procesar_lead_inicial, procesar_lead
+from leads_admin.prospector_agent import get_prospector_agent, procesar_lead_inicial, procesar_lead, formatear_saludo
 from datetime import datetime, timedelta
 import pytz
 import re
@@ -40,8 +40,14 @@ class Command(BaseCommand):
         parser.add_argument(
             '--limit',
             type=int,
-            default=0,
-            help='Limitar número de leads a procesar (0 = todos)',
+            default=1,
+            help='Limitar número de leads a procesar (0 = todos, default=1)',
+        )
+        parser.add_argument(
+            '--all',
+            action='store_true',
+            dest='all_leads',
+            help='Procesar todos los leads pendientes (sin límite)',
         )
     
     def handle(self, *args, **options):
@@ -59,15 +65,9 @@ class Command(BaseCommand):
         
         self.stdout.write(f"Iniciando prospección de leads ({' | '.join(mode_desc) if mode_desc else 'PRODUCCIÓN'})")
         
-        # 1. Verificar hora laboral (8 AM–8 PM, hora Colombia)
+        # 1. Verificar hora laboral (8 AM–6 PM, hora Colombia, Lun–Sáb)
         if not ignore_hours and not self._es_hora_laboral():
-            self.stdout.write("Fuera de horario laboral (8 AM–8 PM). Abortando.")
-            return
-        
-        # Límite de 10 leads por día (24 horas)
-        contactados_24h = self._leads_contactados_ultimas_24h()
-        if contactados_24h >= 10:
-            logger.info(f"Límite diario alcanzado: {contactados_24h}/10 leads contactados en últimas 24h")
+            self.stdout.write("Fuera de horario laboral (8 AM–6 PM, Lun–Sáb). Abortando.")
             return
         
         # 2. Obtener agentes
@@ -79,13 +79,36 @@ class Command(BaseCommand):
         
         # 3. Seleccionar leads para contactar
         conversaciones_pendientes = self._obtener_leads_pendientes()
-        self.stdout.write(f"Conversaciones pendientes encontradas: {len(conversaciones_pendientes)}")
         
-        # Aplicar límite si se especificó
-        limit = options.get('limit', 0)
-        if limit > 0 and len(conversaciones_pendientes) > limit:
-            self.stdout.write(f"Aplicando límite de {limit} leads")
-            conversaciones_pendientes = conversaciones_pendientes[:limit]
+        # Separar follow-ups (urgentes) de primeros contactos (cupo diario)
+        followups = [c for c in conversaciones_pendientes if c.get('etapa') != 'initial']
+        iniciales = [c for c in conversaciones_pendientes if c.get('etapa') == 'initial']
+        
+        self.stdout.write(f"Pendientes: {len(iniciales)} nuevos + {len(followups)} follow-ups")
+        
+        # 0. Verificar límite diario SOLO para primeros contactos (follow-ups no cuentan)
+        if self._limite_diario_alcanzado():
+            iniciales = []  # sin cupo para nuevos
+            if not followups:
+                self.stdout.write("Límite diario alcanzado y sin follow-ups pendientes.")
+                return
+        
+        # Aplicar límite del comando
+        # --all sobreescribe cualquier --limit, procesa todos
+        all_leads = options.get('all_leads', False)
+        limit = 0 if all_leads else options.get('limit', 1)
+        if limit > 0:
+            # Con --limit N: procesar primero follow-ups, luego nuevos hasta completar N
+            resultado = []
+            resultado.extend(followups[:limit])
+            remaining = limit - len(resultado)
+            if remaining > 0:
+                resultado.extend(iniciales[:remaining])
+            conversaciones_pendientes = resultado
+            self.stdout.write(f"Aplicando limite {limit}: {len(resultado)} leads ({len([x for x in resultado if x.get('etapa')!='initial'])} follow-ups + {len([x for x in resultado if x.get('etapa')=='initial'])} nuevos)")
+        else:
+            # Sin limite: todos los follow-ups + nuevos que quepan en el cupo diario
+            conversaciones_pendientes = followups + iniciales
         
         if not conversaciones_pendientes:
             self.stdout.write("No hay leads pendientes. Nada que hacer.")
@@ -104,10 +127,10 @@ class Command(BaseCommand):
                 logger.error(f"Error procesando lead {lead.id} (etapa {etapa}): {e}")
                 return (False, lead.id, str(e))
         
-        # 5. Procesar conversaciones en paralelo (máximo 3 workers simultáneos)
+        # 5. Procesar conversaciones secuencialmente (1 a la vez, más seguro para Meta)
         enviados = 0
         errores = 0
-        max_workers = min(3, len(conversaciones_pendientes))
+        max_workers = 1
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Mapear cada conversación a un futuro
@@ -142,26 +165,81 @@ class Command(BaseCommand):
         )
     
     def _es_hora_laboral(self) -> bool:
-        """Retorna True si es horario laboral (8 AM–6 PM, hora Colombia, lunes a viernes)."""
-        # Zona horaria de Colombia (Bogotá)
+        """Retorna True si es horario laboral.
+        Lun–Sáb: 8:00–18:00 (hora Colombia)
+        Dom:     9:00–17:00
+        """
         try:
             tz_col = pytz.timezone('America/Bogota')
         except:
-            # Fallback a UTC-5
             tz_col = pytz.timezone('Etc/GMT+5')
         
         ahora = timezone.now().astimezone(tz_col)
         hora_actual = ahora.hour
-        dia_semana = ahora.weekday()  # 0 = lunes, 6 = domingo
+        dia_semana = ahora.weekday()  # 0=Lunes, 6=Domingo
         
-        # Lunes a viernes (0-4), horario 8 AM – 6 PM
-        return 0 <= dia_semana <= 4 and 8 <= hora_actual < 18
+        if dia_semana == 6:  # Domingo
+            return 9 <= hora_actual < 17  # 9:00–16:59
+        return 8 <= hora_actual < 18  # Lun–Sáb: 8:00–17:59
     
     def _esperar_como_humano(self):
-        """Pausa aleatoria entre 90 y 240 segundos para evitar baneo de Meta."""
-        delay = random.randint(90, 240)
+        """Pausa entre leads — el cron ya espacia 1h entre ejecuciones."""
+        delay = random.randint(45, 90)
         self.stdout.write(f"  ⏳ Esperando {delay}s antes del siguiente envío...")
         time.sleep(delay)
+    
+    def _leads_procesados_hoy(self) -> int:
+        """Cuenta SOLO primeros contactos nuevos hoy (no follow-ups ni respuestas automáticas)."""
+        desde = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        # Solo contar leads contactados por PRIMERA VEZ hoy: tienen estado 'contactado' y 0 mensajes de usuario
+        total = 0
+        for conv in LeadConversacion.objects.using('leads_db').filter(ultimo_contacto__gte=desde):
+            msgs = conv.mensajes if isinstance(conv.mensajes, list) else []
+            user_msgs = [m for m in msgs if m.get('role') == 'user']
+            if len(user_msgs) == 0:
+                total += 1
+        return total
+    
+    # Fecha en que el número de WhatsApp empezó a enviar (anclaje de calentamiento).
+    # El número APPO_CRM arrancó prospección el 2026-06-08.
+    WARMUP_START = datetime(2026, 6, 8)
+
+    def _cupo_diario(self) -> int:
+        """Cupo diario de PRIMEROS contactos según rampa de calentamiento.
+
+        El cold outreach por WhatsApp no oficial es lo más propenso a baneos de Meta.
+        En vez de un número fijo, escalamos el volumen con la edad del número para
+        construir reputación. Configurable vía env LEADS_DAILY_CAP (override duro).
+        Domingo: -30%. Los follow-ups NO cuentan contra este cupo.
+        """
+        override = os.getenv('LEADS_DAILY_CAP')
+        tz_col = pytz.timezone('America/Bogota')
+        ahora = timezone.now().astimezone(tz_col)
+        if override and override.isdigit():
+            cupo = int(override)
+        else:
+            dias = max(0, (ahora.date() - self.WARMUP_START.date()).days)
+            # Rampa: semana 1 → 15/día, sem 2 → 25, sem 3 → 40, sem 4+ → 60 (techo)
+            if dias < 7:
+                cupo = 15
+            elif dias < 14:
+                cupo = 25
+            elif dias < 21:
+                cupo = 40
+            else:
+                cupo = 60
+        if ahora.weekday() == 6:  # Domingo, más suave
+            cupo = int(cupo * 0.7)
+        return cupo
+
+    def _limite_diario_alcanzado(self) -> bool:
+        """Límite diario por rampa de calentamiento (ver _cupo_diario)."""
+        hoy = self._leads_procesados_hoy()
+        max_diario = self._cupo_diario()
+        if hoy >= max_diario:
+            self.stdout.write(f'Límite diario alcanzado: {hoy}/{max_diario} leads contactados hoy.')
+            return True
+        return False
     
     def _leads_contactados_ultimas_24h(self) -> int:
         """Retorna cuántos leads han sido contactados en las últimas 24 horas."""
@@ -195,7 +273,8 @@ class Command(BaseCommand):
         conversaciones = []
         for lead in leads_nuevos:
             tel_clean = (lead.telefono or '').replace('+', '').replace(' ', '')
-            if re.match(r'^\d{8,15}$', tel_clean):
+            # Solo móviles colombianos: 10 dígitos (3XX...) o 12 dígitos (573XX...)
+            if re.match(r'^3\d{9}$', tel_clean) or re.match(r'^573\d{9}$', tel_clean):
                 # Objeto dict con estructura similar a LeadConversacion pero sin pk
                 conversaciones.append({
                     'lead': lead,
@@ -204,7 +283,8 @@ class Command(BaseCommand):
                 })
         
         # Conversaciones que necesitan follow‑up 24h
-        # Estado 'contactado', último contacto hace más de 24h, pero menos de 72h (porque después va a follow‑up 48h)
+        # Estado 'contactado', último contacto hace más de 24h, pero menos de 72h
+        # EXCLUIR leads con estado 'respondio' o 'activo' (ya están en conversación)
         conv_followup_24h = LeadConversacion.objects.filter(
             estado='contactado',
             ultimo_contacto__lt=hace_24h,      # contacto hace más de 24h
@@ -222,7 +302,13 @@ class Command(BaseCommand):
         )
         
         # Conversaciones existentes para follow‑up
+        # EXCLUIR leads que YA respondieron (tienen mensajes de usuario reales)
         for conv in conv_followup_24h:
+            msgs = conv.mensajes if isinstance(conv.mensajes, list) else []
+            user_msgs = [m for m in msgs if m.get('role') == 'user' and m.get('content', '').strip()]
+            if len(user_msgs) > 0:
+                logger.info(f'[FOLLOWUP] Lead {conv.lead.id} ({conv.lead.nombre_establecimiento}) ya respondió, saltando follow-up 24h')
+                continue
             conversaciones.append({
                 'lead': conv.lead,
                 'conversacion': conv,
@@ -230,6 +316,11 @@ class Command(BaseCommand):
             })
         
         for conv in conv_followup_48h:
+            msgs = conv.mensajes if isinstance(conv.mensajes, list) else []
+            user_msgs = [m for m in msgs if m.get('role') == 'user' and m.get('content', '').strip()]
+            if len(user_msgs) > 0:
+                logger.info(f'[FOLLOWUP] Lead {conv.lead.id} ({conv.lead.nombre_establecimiento}) ya respondió, saltando follow-up 48h')
+                continue
             conversaciones.append({
                 'lead': conv.lead,
                 'conversacion': conv,
@@ -237,30 +328,44 @@ class Command(BaseCommand):
             })
         
         # Ordenar por prioridad descendente del lead, luego fecha de ingreso
-        conversaciones.sort(key=lambda x: (-x['lead'].prioridad, x['lead'].fecha_ingreso or datetime.min))
+        default_date = timezone.make_aware(datetime(2024, 1, 1))
+        conversaciones.sort(key=lambda x: (-x['lead'].prioridad, x['lead'].fecha_ingreso or default_date))
         return conversaciones
     
     def _procesar_lead(self, lead, conversacion, etapa: str, agent, dry_run: bool):
         """
         Procesa un lead según su etapa.
         etapas: 'initial', 'followup_24h', 'followup_48h'
+        
+        IMPORTANTE: Solo se crea/modifica la conversación en DB DESPUÉS
+        de que el envío por WhatsApp sea exitoso. Esto evita datos corruptos
+        cuando el microservicio está caído.
         """
         self.stdout.write(f"Procesando lead {lead.id}: {lead.nombre_establecimiento} (etapa: {etapa})")
         
-        # 1. Generar mensaje según etapa
+        # ═══ GUARDIA ANTI-DUPLICADOS: verificar DB justo antes de enviar ═══
         if etapa == 'initial':
-            # Usar nuevo sistema de partes
-            partes = procesar_lead_inicial(lead.id)
+            conv_existente = LeadConversacion.objects.using('leads_db').filter(lead=lead).first()
+            if conv_existente:
+                msgs = conv_existente.mensajes if isinstance(conv_existente.mensajes, list) else []
+                ya_saludado = any('¿Aquí es' in m.get('content', '') for m in msgs if m.get('role') == 'assistant')
+                if ya_saludado:
+                    self.stdout.write(f"  ⚠️ Lead {lead.id} ya tiene saludo enviado. Saltando (anti-duplicado).")
+                    logger.warning(f'[DEDUP] Lead {lead.id} ({lead.nombre_establecimiento}) ya tiene saludo - evitando duplicado')
+                    return
+        
+        # 1. Generar mensaje según etapa (SIN modificar DB todavía)
+        if etapa == 'initial':
+            # Usar formatear_saludo (no procesar_lead_inicial que crea conversación)
+            partes = formatear_saludo(lead.nombre_establecimiento or 'amigo')
             mensaje_completo = "\n\n".join(partes)
         else:
-            # Para followups, usar la lógica existente pero mantener formato de partes
             if etapa == 'followup_24h':
                 mensaje = self._generar_mensaje_followup_24h(lead, conversacion, agent)
             elif etapa == 'followup_48h':
                 mensaje = self._generar_mensaje_followup_48h(lead, conversacion, agent)
             else:
                 raise ValueError(f"Etapa desconocida: {etapa}")
-            # Dividir en partes por párrafos dobles
             partes = [p.strip() for p in mensaje.split('\n\n') if p.strip()]
             mensaje_completo = mensaje
         
@@ -269,7 +374,7 @@ class Command(BaseCommand):
         
         self.stdout.write(f"  Partes generadas: {len(partes)}")
         
-        # 2. Enviar vía Evolution API (si no es dry-run)
+        # 2. Enviar vía WhatsApp (si no es dry-run)
         if not dry_run:
             for i, parte in enumerate(partes):
                 exito = self._enviar_whatsapp(lead.telefono, parte)
@@ -279,21 +384,39 @@ class Command(BaseCommand):
                 if i < len(partes) - 1:
                     delay = random.uniform(2, 4)
                     time.sleep(delay)
+            # ⚠️ NO enviar imagen aquí — el lead debe responder primero
+            # La imagen se envía solo cuando la conversación llega a precios
             self._esperar_como_humano()
         else:
             self.stdout.write(f"  🧪 (Dry-run) Simulando envío de {len(partes)} partes a " + lead.telefono)
             for parte in partes:
                 self.stdout.write(f"    🧪 Parte: {parte[:60]}...")
         
-        # 3. Registrar conversación en base de datos (solo si no es initial, porque procesar_lead_inicial ya guardó)
+        # 3. Registrar en DB SOLO después de envío exitoso
+        if dry_run:
+            self.stdout.write(f"  🧪 (Dry-run) No se modifica la base de datos")
+            return
+        
         ahora = timezone.now()
         
         if etapa == 'initial':
-            # La conversación ya fue creada/actualizada por procesar_lead_inicial
-            # Solo actualizar estado del lead
+            # Crear conversación y marcarla como contactado
+            conv, created = LeadConversacion.objects.get_or_create(
+                lead=lead,
+                defaults={'mensajes': [], 'estado': 'nuevo'}
+            )
+            conv.mensajes.append({
+                'role': 'assistant',
+                'content': mensaje_completo,
+                'timestamp': ahora.isoformat(),
+            })
+            conv.estado = 'contactado'
+            conv.ultimo_contacto = ahora
+            conv.save()
+            # Marcar lead como contactado
             lead.estado = 'Contactado'
             lead.save()
-            self.stdout.write(f"  🔄 Lead marcado como Contactado")
+            self.stdout.write(f"  🔄 Lead marcado como Contactado + conversación creada")
         else:
             # Actualizar conversación existente con mensaje completo
             conversacion.mensajes.append({
@@ -301,7 +424,6 @@ class Command(BaseCommand):
                 'content': mensaje_completo,
                 'timestamp': ahora.isoformat(),
             })
-            # Determinar nuevo estado según etapa
             if etapa == 'followup_24h':
                 nuevo_estado = 'followup_24h'
             elif etapa == 'followup_48h':
@@ -312,136 +434,159 @@ class Command(BaseCommand):
             conversacion.ultimo_contacto = ahora
             conversacion.save()
             self.stdout.write(f"  🔄 Conversación actualizada (nuevo estado: {nuevo_estado})")
-            # Actualizar estado del lead
             lead.estado = 'Contactado'
             lead.save()
         
         self.stdout.write(f"  ✅ Lead actualizado y conversación registrada")
     
-    def _generar_mensaje_inicial(self, lead, agent):
-        """Genera el primer mensaje de prospección."""
-        lead_info = {
-            'nombre_establecimiento': lead.nombre_establecimiento,
-            'ciudad': lead.ciudad,
-            'telefono': lead.telefono,
-            'proyecto': lead.proyecto,
-        }
-        return agent.generar_mensaje_inicial(lead_info)
+    def _generar_mensaje_inicial(self, lead):
+        """Genera el primer mensaje estático de prospección."""
+        return formatear_saludo(lead.nombre_establecimiento)
     
     def _generar_mensaje_followup_24h(self, lead, conversacion, agent):
-        """Genera mensaje de follow‑up después de 24h sin respuesta."""
-        # Usar el historial de conversación para contextualizar
-        historial = conversacion.mensajes if conversacion and conversacion.mensajes else []
-        # Extraer último mensaje enviado por nosotros (si hay)
-        ultimo_mensaje_asistente = None
-        for msg in reversed(historial):
-            if msg.get('role') == 'assistant':
-                ultimo_mensaje_asistente = msg.get('content', '')
-                break
-        
-        prompt = f"""Eres un asistente comercial de APPO. Hace 24h enviaste este mensaje a {lead.nombre_establecimiento} en {lead.ciudad}:
-
-"{ultimo_mensaje_asistente[:200] if ultimo_mensaje_asistente else 'Saludo inicial'}"
-
-El lead no ha respondido. Escribe un mensaje de follow‑up cordial que:
-1. Pregunte si recibieron el mensaje anterior.
-2. Reitere brevemente el valor de APPO (gestión de reservas, clientes, pagos).
-3. Ofrezca una demo gratuita sin compromiso.
-4. Sea conciso (2‑3 líneas).
-
-Mensaje:"""
-        
-        messages = [
-            {"role": "system", "content": "Eres un asistente comercial experto en follow‑ups por WhatsApp. Escribes mensajes persuasivos pero no intrusivos."},
-            {"role": "user", "content": prompt}
-        ]
-        # Usar el método interno del agente
-        return agent._call_api(messages)
+        """Genera follow-up 24h vía LLM — contextual, relajado, persuasivo."""
+        nombre = lead.nombre_establecimiento or "amigo"
+        historial = list(conversacion.mensajes) if conversacion and conversacion.mensajes else []
+        llm_respuesta = agent.generar_followup(historial, 'followup_24h', nombre)
+        if llm_respuesta:
+            return llm_respuesta
+        # Fallback si el LLM falla
+        logger.warning(f'[FOLLOWUP] Fallback estático para lead {lead.id} (24h)')
+        return (
+            f"Hola 👋 De nuevo Juan. Te decía que con Appo tus clientes agendan solos "
+            f"24/7, sin WhatsApp, sin llamadas. Ya hay más de 11 barberías en Colombia "
+            f"ahorrándose como 30 min diarios en puro celular. "
+            f"La capa gratis es para siempre, sin tarjeta. ¿Te parece si lo ves?"
+        )
     
     def _generar_mensaje_followup_48h(self, lead, conversacion, agent):
-        """Genera mensaje de ruptura de hielo después de 48h adicionales sin respuesta."""
-        prompt = f"""Eres un consultor de negocios para peluquerías y centros de estética. Te diriges a {lead.nombre_establecimiento} en {lead.ciudad}.
-
-Objetivo: Romper el hielo con un ángulo diferente al comercial. No hables de precios ni demos. En cambio, haz una pregunta abierta sobre los desafíos de su negocio.
-
-Ejemplos:
-- "¿Cuál es el mayor dolor de cabeza al gestionar las reservas de tus clientes?"
-- "¿Cómo manejas actualmente las citas que los clientes no asisten?"
-- "¿Qué porcentaje de tu tiempo dedicas a la administración vs a atender clientes?"
-
-Escribe UNA sola pregunta concisa y profesional (1‑2 líneas). No incluyas saludos genéricos."""
+        """Genera follow-up 48h vía LLM — último intento, respetuoso, sin presión."""
+        nombre = lead.nombre_establecimiento or "amigo"
+        historial = list(conversacion.mensajes) if conversacion and conversacion.mensajes else []
+        llm_respuesta = agent.generar_followup(historial, 'followup_48h', nombre)
+        if llm_respuesta:
+            return llm_respuesta
+        # Fallback si el LLM falla
+        logger.warning(f'[FOLLOWUP] Fallback estático para lead {lead.id} (48h)')
+        return (
+            f"Juan acá de nuevo, y esta es la última, tranqui. "
+            f"Te dejo el dato directo: appo.com.co, 30 días gratis, sin tarjeta, sin permanencia. "
+            f"Entrás, lo probás, y si no te sirve, nada pasa. "
+            f"A veces uno no sabe lo que le hace falta hasta que lo prueba. "
+            f"¡Buen día! 🙌"
+        )
+    
+    def _validar_numero_whatsapp(self, numero: str) -> bool:
+        """
+        Valida si un número está registrado en WhatsApp usando el microservicio.
+        Retorna True si el número existe en WhatsApp.
+        """
+        VALIDATE_URL = "http://localhost:8081/number/check/APPO_CRM"
+        headers = {"Content-Type": "application/json"}
+        payload = {"number": f"{numero}@c.us"}
         
-        messages = [
-            {"role": "system", "content": "Eres un consultor estratégico que ayuda a negocios a optimizar sus operaciones. Formulas preguntas penetrantes que generan reflexión."},
-            {"role": "user", "content": prompt}
-        ]
-        return agent._call_api(messages)
+        try:
+            r = requests.post(VALIDATE_URL, headers=headers, json=payload, timeout=10)
+            if r.status_code == 200:
+                data = r.json()
+                is_registered = data.get('registered', False) or data.get('exists', False)
+                if is_registered:
+                    return True
+                logger.info(f"Número {numero} no registrado en WhatsApp")
+                return False
+            logger.warning(f"Validación WhatsApp para {numero}: HTTP {r.status_code}")
+            return True  # Si el endpoint falla, intentar enviar igual (fail-open)
+        except Exception as e:
+            logger.warning(f"Error validando {numero}: {e}. Se intentará enviar igual.")
+            return True  # Fail-open: si no podemos validar, intentamos enviar
     
     def _enviar_whatsapp(self, telefono: str, mensaje: str) -> bool:
         """
         Envía un mensaje de WhatsApp usando el microservicio whatsapp‑web.js.
-        Sin templates, sin aprobaciones.
+        El microservicio maneja internamente la estrategia multi-formato (@c.us, @s.whatsapp.net, @lid).
         
         Args:
             telefono: Número del destinatario (con o sin +)
             mensaje: Contenido del mensaje
         """
-        # Configuración microservicio whatsapp‑web.js
         MICROSERVICE_URL = "http://localhost:8081/message/sendText/APPO_CRM"
         
-        # Formatear número (quitar + y espacios, agregar código de país si falta)
+        # Formatear número: quitar +, espacios, y código país si falta
         numero = telefono.replace("+", "").replace(" ", "")
         if not numero.startswith("57"):
             numero = "57" + numero
         
-        # Intentar dos formatos: primero con @lid (para números nuevos sin LID), luego con @s.whatsapp.net
-        numero_formats = [
-            f"{numero}@lid",      # Para números nuevos que no tienen LID
-            f"{numero}@s.whatsapp.net"  # Formato estándar si ya tiene LID
-        ]
-        
-        headers = {
-            "Content-Type": "application/json"
+        # Enviar formato simple @c.us — el microservicio maneja los fallbacks
+        payload = {
+            "number": f"{numero}@c.us",
+            "textMessage": {"text": mensaje}
         }
         
-        # Intentar cada formato hasta que uno funcione
-        for formato_numero in numero_formats:
-            payload = {
-                "number": formato_numero,
-                "textMessage": {
-                    "text": mensaje
-                }
-            }
+        try:
+            self.stdout.write(f"  📱 Enviando a {numero}...")
+            r = requests.post(
+                MICROSERVICE_URL,
+                headers={"Content-Type": "application/json"},
+                json=payload,
+                timeout=20
+            )
+            r.raise_for_status()
             
+            respuesta = r.json()
+            msg_id = respuesta.get('key', {}).get('id', 'unknown')
+            logger.info(f"WhatsApp enviado a {numero} via whatsapp‑web.js. ID: {msg_id}")
+            self.stdout.write(f"  ✅ Enviado (ID: {msg_id})")
+            return True
+            
+        except requests.exceptions.HTTPError as e:
+            error_body = ""
             try:
-                self.stdout.write(f"  🔄 Probando formato: {formato_numero}")
-                r = requests.post(
-                    MICROSERVICE_URL,
-                    headers=headers,
-                    json=payload,
-                    timeout=15
-                )
-                r.raise_for_status()
-                
-                respuesta = r.json()
-                logger.info(f"WhatsApp enviado a {formato_numero} via whatsapp‑web.js. Respuesta: {respuesta}")
-                self.stdout.write(f"  📱 WhatsApp enviado via whatsapp‑web.js. Estado: {respuesta.get('status', 'ok')}")
-                return True
-                
-            except requests.exceptions.HTTPError as e:
-                if "500" in str(e) and "No LID" in str(e.response.text if hasattr(e, 'response') else ''):
-                    logger.warning(f"Formato {formato_numero} falló: No LID. Probando siguiente formato.")
-                    self.stdout.write(f"  ⚠️  {formato_numero} sin LID. Probando siguiente formato...")
-                    continue
-                else:
-                    raise
-            except Exception as e:
-                # Para otros errores, romper y no probar más formatos
-                logger.error(f"Error enviando WhatsApp a {formato_numero}: {e}")
-                self.stdout.write(f"  ❌ Error con formato {formato_numero}: {e}")
-                return False
+                error_body = e.response.text[:200] if hasattr(e, 'response') else ""
+            except:
+                pass
+            logger.error(f"Error enviando WhatsApp a {numero}: HTTP {e.response.status_code if hasattr(e, 'response') else '?'} - {error_body}")
+            self.stdout.write(f"  ❌ Error: {error_body[:100]}")
+            return False
+        except Exception as e:
+            logger.error(f"Error enviando WhatsApp a {numero}: {e}")
+            self.stdout.write(f"  ❌ Error: {e}")
+            return False
+    
+    def _enviar_imagen_planes(self, telefono: str) -> bool:
+        """Envía la imagen de planes de Appo al lead."""
+        MEDIA_URL = "http://localhost:8081/message/sendMedia/APPO_CRM"
+        IMAGEN_URL = "https://appo.com.co/media/galeria_negocio/planes-appo.png"
+        CAPTION = (
+            "Estos son los planes de Appo 🚀\n\n"
+            "✅ Capa Gratuita: para siempre, sin tarjeta, sin límite\n"
+            "✅ Plan Pro: $49.000/barbero/mes, 30 días gratis\n\n"
+            "Cancelás cuando quieras · appo.com.co"
+        )
         
-        # Si llegamos aquí, todos los formatos fallaron
-        logger.error(f"Todos los formatos fallaron para {telefono}")
-        self.stdout.write(f"  ❌ Todos los formatos fallaron para {telefono}")
-        return False
+        numero = telefono.replace("+", "").replace(" ", "")
+        if not numero.startswith("57"):
+            numero = "57" + numero
+        
+        payload = {
+            "number": f"{numero}@c.us",
+            "mediaMessage": {
+                "mediatype": "image",
+                "media": IMAGEN_URL,
+                "caption": CAPTION
+            }
+        }
+        
+        try:
+            r = requests.post(
+                MEDIA_URL,
+                headers={"Content-Type": "application/json"},
+                json=payload,
+                timeout=30
+            )
+            r.raise_for_status()
+            self.stdout.write(f"  🖼️ Imagen enviada a {numero}")
+            return True
+        except Exception as e:
+            logger.error(f"Error enviando imagen a {numero}: {e}")
+            self.stdout.write(self.style.WARNING(f"  ⚠️ Error enviando imagen: {e}"))
+            return False

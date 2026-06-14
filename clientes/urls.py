@@ -33,6 +33,7 @@ from .views import (
     google_places_autocomplete,
     google_places_details,
     profesionales_por_servicio,
+    geocode_proxy,
 )
 from .whatsapp_views import whatsapp_webhook_verify, whatsapp_webhook
 from .editar_reserva_views import editar_reserva, cancelar_reserva_desde_whatsapp, vista_reserva_movil
@@ -82,6 +83,7 @@ urlpatterns = [
     path('editar-reserva/<int:reserva_id>/', editar_reserva, name='editar_reserva'),
     path('vista-reserva-movil/<int:reserva_id>/', vista_reserva_movil, name='vista_reserva_movil'),
     path('cancelar-reserva-whatsapp/<int:reserva_id>/', cancelar_reserva_desde_whatsapp, name='cancelar_reserva_whatsapp'),
+    
 ]
 
 urlpatterns += [
@@ -90,4 +92,5 @@ urlpatterns += [
     path('api/buscar-negocios/', api_buscar_negocios, name='api_buscar_negocios'),
     path('api/google-places-autocomplete/', google_places_autocomplete, name='google_places_autocomplete'),
     path('api/google-places-details/', google_places_details, name='google_places_details'),
+    path("api/geocode-proxy/", geocode_proxy, name="geocode_proxy"),
 ]

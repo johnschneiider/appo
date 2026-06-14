@@ -64,6 +64,9 @@ _load_dotenv_explicit()
 # Esto evita que una sola línea malformada en .env haga que no se cargue nada.
 _load_env_fallback_parser()
 
+# Forzar CSRF_USE_SESSIONS a False antes de cualquier otra cosa
+CSRF_USE_SESSIONS = False
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -107,6 +110,7 @@ CSP_POLICY = {
         "https://maps.googleapis.com",
         "https://maps.gstatic.com",
         "https://cdnjs.cloudflare.com",
+        "https://code.jquery.com",
     ],
     "style-src": [
         "'self'",
@@ -188,10 +192,12 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'widget_tweaks',
+    'django_extensions',
     
     # Local apps
     'cuentas',
     'negocios',
+    'billing',
     'clientes',
     'profesionales',
     'chat',
@@ -200,6 +206,7 @@ INSTALLED_APPS = [
     'recordatorios.apps.RecordatoriosConfig',
     'fidelizacion',
     'django.contrib.humanize',
+    'leads_admin',
 ]
 
 MIDDLEWARE = [
@@ -217,6 +224,7 @@ MIDDLEWARE = [
     'cuentas.middleware.RateLimitMiddleware',
     'cuentas.middleware.ActivityLoggingMiddleware',
     'cuentas.middleware.SecurityHeadersMiddleware',
+    'billing.middleware.SubscriptionCheckMiddleware',
     'clientes.middleware.ActividadUsuarioMiddleware',
 ]
 
@@ -236,6 +244,8 @@ TEMPLATES = [
                 'cuentas.context_processors.tipo_usuario',
                 'cuentas.context_processors.app_metrics',
                 'cuentas.context_processors.google_maps_key',
+                'billing.context_processors.subscription_banner',
+                'billing.context_processors.soporte_vip_context',
             ],
         },
     },
@@ -287,6 +297,10 @@ if database_url:
                 },
                 'CONN_MAX_AGE': 600,
             })
+            DATABASES['leads_db'] = {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': '/var/www/appo.com.co/data/leads_colombia.db',
+            }
             db_configured = True
         else:
             # Si el esquema no corresponde a Postgres, ignorar DATABASE_URL y permitir fallback a POSTGRES_*
@@ -432,20 +446,21 @@ if not db_configured and os.environ.get('POSTGRES_DB'):
     
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql',  # Backend estándar con limpieza de parámetros
+            'ENGINE': 'django.db.backends.postgresql',
             'NAME': db_name,
             'USER': db_user,
             'PASSWORD': db_password,
             'HOST': db_host,
             'PORT': db_port,
-            # Opciones adicionales para manejar codificación
             'OPTIONS': {
                 'client_encoding': 'UTF8',
                 'connect_timeout': 10,
-                # Pasar el DSN pre-construido si es necesario
-                # Nota: Django no usa esto directamente, pero ayuda a debuggear
             },
             'CONN_MAX_AGE': 600,
+        },
+        'leads_db': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': '/var/www/appo.com.co/data/leads_colombia.db',
         }
     }
     db_configured = True
@@ -453,10 +468,10 @@ if not db_configured and os.environ.get('POSTGRES_DB'):
     # Log del DSN (sin contraseña) para debugging
     dsn_debug = dsn_string.replace(f"password={quote_plus(db_password)}", "password=***")
     print(f"Database DSN (debug): {dsn_debug}")
-else:
+elif not db_configured:
     # Configuración para SQLite SOLO en desarrollo local (si no hay PostgreSQL).
     # En producción, fallar rápido para evitar pérdida de datos por usar un SQLite local accidentalmente.
-    if not DEBUG and not db_configured:
+    if not DEBUG:
         raise ImproperlyConfigured(
             "Base de datos no configurada para producción. Define DATABASE_URL o POSTGRES_DB/USER/PASSWORD/HOST/PORT. "
             "Se evitó fallback a SQLite para proteger datos."
@@ -465,6 +480,10 @@ else:
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
+        },
+        'leads_db': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': '/var/www/appo.com.co/data/leads_colombia.db',
         }
     }
 
@@ -695,7 +714,6 @@ EMAIL_RATE_LIMIT_PER_USER = os.environ.get('EMAIL_RATE_LIMIT_PER_USER', '10/hour
 MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
 
 # Configuración de CSRF para desarrollo
-CSRF_USE_SESSIONS = True  # Usar sesiones para CSRF
 CSRF_COOKIE_DOMAIN = None  # Permitir cookies en cualquier dominio
 SESSION_COOKIE_DOMAIN = None  # Permitir cookies de sesión en cualquier dominio
 CSRF_TRUSTED_ORIGINS = [
@@ -711,6 +729,9 @@ CSRF_TRUSTED_ORIGINS = [
 # Configuración de adaptadores personalizados
 ACCOUNT_ADAPTER = 'cuentas.adapters.CustomAccountAdapter'
 SOCIALACCOUNT_ADAPTER = 'cuentas.adapters.CustomSocialAccountAdapter'
+
+# Database routers
+DATABASE_ROUTERS = ['leads_admin.db_router.LeadsRouter']
 
 # Django Channels Configuration
 ASGI_APPLICATION = 'melissa.asgi.application'
@@ -831,13 +852,13 @@ RATELIMIT_ENABLE = True
 RATELIMIT_USE_CACHE = 'default'
 RATELIMIT_KEY_PREFIX = 'rl'
 
-# Configuraciones específicas de rate limiting
+# Configuraciones específicas de rate limiting (ajustadas 8-Jun-2026)
 RATELIMIT_SETTINGS = {
-    'LOGIN_RATE': '5/m',  # 5 intentos por minuto
-    'REGISTER_RATE': '3000/h',  # 3 registros por hora
-    'RESERVATION_RATE': '10/h',  # 10 reservas por hora
-    'API_RATE': '100/h',  # 100 requests por hora para APIs
-    'GENERAL_RATE': '1000/h',  # 1000 requests por hora general
+    'LOGIN_RATE': '20/m',  # 20 intentos POST por minuto
+    'REGISTER_RATE': '30/h',  # 30 registros por hora
+    'RESERVATION_RATE': '30/m',  # 30 reservas por minuto
+    'API_RATE': '500/h',  # 500 requests por hora para APIs
+    'GENERAL_RATE': '2000/h',  # 2000 requests por hora general
 }
 
 LOGGING = {
@@ -990,3 +1011,8 @@ PAYU_MERCHANT_ID = os.getenv('PAYU_MERCHANT_ID', '')
 PAYU_ACCOUNT_ID = os.getenv('PAYU_ACCOUNT_ID', '')
 PAYU_TEST_MODE = os.getenv('PAYU_TEST_MODE', 'true').lower() == 'true'
 PAYU_BASE_URL = os.getenv('PAYU_BASE_URL', 'https://sandbox.api.payulatam.com/payments-api/4.0/')
+# ── Bold Payment Gateway ──
+# Docs: https://developers.bold.co/pagos-en-linea/api-link-de-pagos
+# Obtener llaves en: https://panel.bold.co → Integraciones → Llaves de integración → Botón de pagos
+BOLD_API_KEY = os.environ.get('BOLD_API_KEY', '')
+BOLD_SECRET_KEY = os.environ.get('BOLD_SECRET_KEY', '')

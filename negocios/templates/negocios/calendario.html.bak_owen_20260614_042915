@@ -1,0 +1,5399 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Calendario de Reservas - {{ negocio.nombre }}{% endblock %}
+
+{% block extra_head %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'css/negocios/calendario.css' %}?v=4.2.0" rel="stylesheet">
+<style>
+/* Estilos específicos para el nuevo diseño de calendario */
+:root {
+    --primary-color: #133A7F;
+    --secondary-color: #64748b;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --info-color: #06b6d4;
+    --light-color: #f8fafc;
+    --dark-color: #1e293b;
+    --border-color: #e2e8f0;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --sidebar-bg: #0e2d66;
+    --header-bg: #ffffff;
+    --calendar-bg: #f8fafc;
+}
+
+/* Layout principal */
+.calendar-app {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    grid-template-rows: auto 1fr;
+    min-height: 100dvh;
+    background: var(--calendar-bg);
+}
+.calendar-sidebar {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    width: 80px;
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem 0;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 1.2rem;
+}
+
+.sidebar-icon:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.sidebar-icon.active {
+    background: var(--primary-color);
+    color: white;
+}
+.calendar-header {
+    grid-column: 2;
+    grid-row: 1;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
+}
+
+.header-title-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.logo {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--dark-color);
+    line-height: 1.2;
+}
+
+.header-center {
+    flex: 2;
+    display: flex;
+    justify-content: center;
+}
+
+.date-navigation-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--light-color);
+    padding: 0.5rem 1rem;
+    border-radius: 12px;
+}
+
+.nav-btn-large {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    border: none;
+    background: white;
+    color: var(--dark-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 1.2rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.nav-btn-large:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: scale(1.05);
+}
+
+.current-date-large {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 140px;
+    padding: 0 1rem;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.current-date-large:hover {
+    opacity: 0.8;
+}
+
+.current-date-large .date-day {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--dark-color);
+    line-height: 1;
+}
+
+.current-date-large .date-month {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--dark-color);
+    text-transform: capitalize;
+}
+
+.current-date-large .date-weekday {
+    font-size: 0.75rem;
+    color: var(--dark-color);
+    text-transform: capitalize;
+}
+
+/* Input de fecha oculto (pero existente) para abrir el datepicker nativo */
+.fecha-picker-header {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.today-btn-header {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.today-btn-header:hover {
+    background: #1E5BC6;
+    transform: translateY(-1px);
+}
+
+.add-btn-header {
+    background: var(--success-color);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+}
+
+.add-btn-header:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.header-controls .btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: white;
+    color: var(--secondary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.header-controls .btn:hover {
+    background: var(--light-color);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.notification-badge {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.notification-badge:hover {
+    border-color: var(--primary-color);
+}
+
+.badge-count {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid var(--success-color);
+    cursor: pointer;
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Contenido principal */
+.calendar-main {
+    grid-column: 2;
+    grid-row: 2;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 1rem;
+    overflow: hidden;
+}
+
+/* Info rápida del calendario */
+.calendar-quick-info {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.info-card {
+    background: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.info-card i {
+    font-size: 1.1rem;
+}
+
+.info-legend {
+    margin-left: auto;
+    gap: 1rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--secondary-color);
+}
+
+.legend-item .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    box-sizing: border-box;
+}
+
+/* Colores de leyenda actualizados */
+.legend-item .dot.confirmed {
+    background: linear-gradient(135deg, #48bb78, #38a169);
+}
+
+.legend-item .dot.suscriptor {
+    background: linear-gradient(135deg, #3182ce, #2b6cb0);
+    border: 2px solid #ffd700;
+    box-shadow: 0 0 4px rgba(255, 215, 0, 0.5);
+}
+
+.legend-item .dot.completed {
+    background: linear-gradient(135deg, #4a5568, #2d3748);
+}
+
+.legend-item .dot.noshow {
+    background: linear-gradient(135deg, #f687b3, #ed64a6);
+}
+
+/* Botones de acción */
+.action-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: white;
+    color: var(--secondary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: var(--light-color);
+}
+
+/* Contenedor de scroll horizontal para el calendario */
+.calendar-scroll-container {
+    background: white;
+    border-radius: 16px;
+    overflow-x: auto; /* Scroll horizontal automático */
+    overflow-y: auto; /* Scroll vertical automático */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    width: 100%; /* Ancho completo del contenedor padre */
+    height: calc(100dvh - 160px); /* Optimizado para mostrar más contenido vertical */
+    min-height: 600px; /* Altura mínima para asegurar visibilidad */
+    margin-bottom: 1rem; /* Reducido para aprovechar más espacio */
+    /* Forzar scroll horizontal cuando sea necesario */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+    /* Asegurar que el scroll horizontal funcione */
+    white-space: nowrap;
+    /* Habilitar scroll horizontal */
+    scroll-behavior: smooth;
+    /* Asegurar que el sticky funcione correctamente */
+    position: relative;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+
+/* Grid del calendario */
+.calendar-grid {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden; /* Evitar desbordamiento */
+    box-shadow: none;
+    width: 100%;
+    max-width: none;
+    /* Altura dinámica basada en el contenido */
+    padding-bottom: 1rem;
+    /* Asegurar que el sticky funcione correctamente */
+    position: relative;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+
+/* Personalizar scrollbar para webkit */
+.calendar-scroll-container::-webkit-scrollbar {
+    height: 12px; /* Scrollbar horizontal más visible */
+    width: 12px; /* Scrollbar vertical más visible */
+}
+
+.calendar-scroll-container::-webkit-scrollbar-track {
+    background: #f1f5f9; /* Fondo más visible para el track */
+    border-radius: 6px;
+}
+
+.calendar-scroll-container::-webkit-scrollbar-thumb {
+    background: var(--primary-color); /* Color primario para el thumb */
+    border-radius: 6px;
+    border: 2px solid #f1f5f9;
+}
+
+.calendar-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: #1E5BC6; /* Color más oscuro al hacer hover */
+}
+
+/* Asegurar que el sticky funcione correctamente en todos los navegadores */
+.calendar-scroll-container {
+    /* Forzar hardware acceleration */
+    will-change: scroll-position;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    /* Asegurar que el contexto de apilamiento sea correcto */
+    isolation: isolate;
+}
+
+/* Solución simple y efectiva para columna de horas estática */
+/* Contenedor principal con scroll */
+.calendar-scroll-container {
+    position: relative;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+/* Asegurar que las filas del calendario tengan el contexto correcto */
+.calendar-header-row,
+.calendar-time-row {
+    position: relative;
+    z-index: 1;
+}
+
+/* Columna de hora (header y celdas) */
+.calendar-fullscreen-container .time-header-fixed,
+.calendar-fullscreen-container .time-slot {
+    width: 100px;
+    min-width: 100px;
+    height: 80px;
+    padding: 0.75rem;
+    flex-shrink: 0;
+    font-weight: 700;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-fullscreen-container .time-header-fixed {
+    background: var(--primary-color);
+    color: white;
+    font-size: 1.1rem;
+    letter-spacing: 0.5px;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
+.calendar-fullscreen-container .time-slot {
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    color: var(--dark-color);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
+    padding: 0.75rem;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    font-weight: 700;
+    color: var(--dark-color);
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Estilos responsivos para la columna de horas */
+@media (max-width: 1200px) {
+    .calendar-fullscreen-container .time-header-fixed,
+    .calendar-fullscreen-container .time-slot {
+        width: 80px;
+        min-width: 80px;
+        padding: 0.5rem;
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 1024px) {
+    .calendar-fullscreen-container .time-header-fixed,
+    .calendar-fullscreen-container .time-slot {
+        width: 70px;
+        min-width: 70px;
+        height: 60px;
+        padding: 0.5rem;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .calendar-fullscreen-container .time-header-fixed,
+    .calendar-fullscreen-container .time-slot {
+        width: 60px;
+        min-width: 60px;
+        height: 50px;
+        padding: 0.375rem;
+        font-size: 0.8rem;
+    }
+}
+
+/* Estilos responsive para el header de navegación */
+@media (max-width: 1200px) {
+    .calendar-header {
+        padding: 0 1rem;
+    }
+    
+    .header-title-section .logo {
+        font-size: 1rem;
+    }
+    
+    .current-date-large {
+        min-width: 100px;
+    }
+    
+    .current-date-large .date-day {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .header-left {
+        order: 1;
+        flex: 0 0 auto;
+    }
+    
+    .header-center {
+        order: 3;
+        flex: 1 0 100%;
+        justify-content: center;
+    }
+    
+    .header-right {
+        order: 2;
+        flex: 0 0 auto;
+    }
+    
+    .date-navigation-header {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .calendar-sidebar {
+        width: 60px;
+    }
+    
+    .calendar-main {
+        padding: 1rem;
+    }
+    
+    .header-title-section small {
+        display: none;
+    }
+    
+    .add-btn-header span {
+        display: none;
+    }
+    
+    .add-btn-header {
+        padding: 0.6rem;
+    }
+    
+    .calendar-quick-info {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .info-legend {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 576px) {
+    .calendar-app {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .calendar-sidebar {
+        display: none !important;
+    }
+    
+    .calendar-header {
+        grid-column: 1;
+    }
+    
+    .calendar-main {
+        grid-column: 1;
+        padding: 0.75rem;
+    }
+    
+    .nav-btn-large {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .current-date-large .date-day {
+        font-size: 1.25rem;
+    }
+    
+    .today-btn-header {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendar-header {
+        padding: 0.4rem 0.5rem;
+        gap: 0.4rem;
+    }
+    
+    .header-left .logo {
+        font-size: 0.85rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100px;
+    }
+    
+    .header-title-section small {
+        display: none;
+    }
+    
+    .nav-btn-large {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+    
+    .today-btn-header {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.7rem;
+    }
+    
+    .date-navigation-header {
+        gap: 0.3rem;
+        padding: 0.3rem 0.5rem;
+    }
+    
+    .current-date-large {
+        min-width: 80px;
+        padding: 0 0.3rem;
+    }
+    
+    .current-date-large .date-day {
+        font-size: 1rem;
+    }
+    
+    .current-date-large .date-month {
+        font-size: 0.6rem;
+    }
+    
+    .current-date-large .date-weekday {
+        font-size: 0.65rem;
+    }
+    
+    .add-btn-header {
+        padding: 0.4rem 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .add-btn-header span {
+        display: none;
+    }
+    
+    .action-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+}
+
+/* Estilos responsivos para el header fijo */
+@media (max-width: 1024px) {
+    .calendar-scroll-container .calendar-grid .calendar-header-row .time-header-fixed {
+        left: 0 !important;
+        width: 80px !important;
+        min-width: 80px !important;
+        padding: 0.5rem !important;
+        font-size: 1rem !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .calendar-scroll-container .calendar-grid .calendar-header-row .time-header-fixed {
+        left: 0 !important;
+        top: 0 !important;
+        width: 70px !important;
+        min-width: 70px !important;
+        height: 60px !important;
+        padding: 0.5rem !important;
+        font-size: 0.9rem !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .calendar-scroll-container .calendar-grid .calendar-header-row .time-header-fixed {
+        left: 0 !important;
+        top: 0 !important;
+        width: 60px !important;
+        min-width: 60px !important;
+        height: 50px !important;
+        padding: 0.375rem !important;
+        font-size: 0.8rem !important;
+    }
+}
+
+/* Asegurar que las filas del calendario tengan el contexto correcto */
+.calendar-header-row,
+.calendar-time-row {
+    /* Crear un nuevo contexto de apilamiento */
+    position: relative;
+    z-index: 1;
+    /* Asegurar que el sticky funcione */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+
+/* Scrollbar para Firefox */
+.calendar-scroll-container {
+    scrollbar-width: auto; /* Hacer visible el scrollbar en Firefox */
+    scrollbar-color: var(--primary-color) #f1f5f9;
+    /* Asegurar que el sticky funcione en Firefox */
+    position: relative;
+}
+
+/* Asegurar alineación de columnas */
+.calendar-header-row,
+.calendar-time-row {
+    display: flex;
+    min-width: max-content; /* Evita que se compriman las columnas */
+    flex-shrink: 0; /* Previene que se compriman */
+    /* Asegurar que el scroll horizontal funcione */
+    width: max-content;
+    /* Forzar ancho mínimo para scroll horizontal */
+    min-width: 1200px; /* Aumentado para mejor visualización */
+    /* Asegurar que el sticky funcione correctamente */
+    position: relative;
+}
+
+/* Forzar que las columnas mantengan su ancho */
+.professional-header,
+.professional-slot {
+    box-sizing: border-box; /* Incluye padding y border en el ancho */
+    flex-shrink: 0; /* Previene que se compriman */
+    /* Asegurar que no interfieran con el sticky */
+    position: relative;
+    z-index: 1;
+    /* Permitir clicks en áreas vacías del slot */
+    cursor: pointer;
+}
+
+/* Contenedor principal del calendario */
+.calendar-header-row {
+    display: flex;
+    background: var(--light-color);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.calendar-time-row {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Forzar que todas las filas usen exactamente el mismo ancho de columna */
+.calendar-header-row .professional-header,
+.calendar-time-row .professional-slot {
+    min-width: 250px;
+    flex: 1 0 250px;
+}
+
+.time-header {
+    width: 100px;
+    padding: 0.75rem;
+    background: var(--primary-color);
+    color: white !important;
+    font-weight: 600;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: sticky;
+    left: 0;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+
+.professional-header {
+    flex: 1;
+    min-width: 250px; /* Reducido para permitir más columnas y mejor distribución */
+    padding: 1rem 0.75rem;
+    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    border-right: 1px solid var(--border-color);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    position: relative;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.professional-header::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, var(--border-color), transparent);
+}
+
+.professional-header:last-child {
+    border-right: none;
+}
+
+.professional-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--primary-color);
+    background: var(--light-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.professional-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.professional-name {
+    font-weight: 700;
+    color: var(--dark-color);
+    font-size: 0.9rem;
+    line-height: 1.2;
+}
+
+.professional-business {
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+/* Filas de tiempo */
+.calendar-time-row {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+    overflow: visible !important; /* Permitir que reservas se extiendan a la siguiente fila */
+}
+
+.calendar-time-row:last-child {
+    border-bottom: none;
+}
+
+.time-slot {
+    width: 100px;
+    height: 80px; /* Altura optimizada para mostrar 24 horas */
+    padding: 0.75rem;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border-right: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: var(--dark-color);
+    flex-shrink: 0;
+    font-size: 0.85rem; /* Ligeramente más grande para mejor legibilidad */
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: sticky;
+    left: 0;
+    z-index: 50;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+
+.time-slot::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, var(--border-color), transparent);
+}
+
+.professional-slot {
+    flex: 1;
+    min-width: 250px; /* Reducido para permitir más columnas y mejor distribución */
+    padding: 0.5rem;
+    border-right: 1px solid var(--border-color);
+    background: linear-gradient(135deg, #ffffff, #fafbfc);
+    position: relative;
+    height: 80px; /* Altura fija que coincide con time-slot */
+    min-height: 80px; /* Altura mínima garantizada */
+    transition: background-color 0.2s ease;
+    overflow: visible !important; /* Permitir que reservas largas se extiendan */
+}
+
+.professional-slot:last-child {
+    border-right: none;
+}
+
+.professional-slot:hover {
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+}
+
+.professional-slot:nth-child(even) {
+    background: linear-gradient(135deg, #fafbfc, #f8fafc);
+}
+
+.professional-slot:nth-child(even):hover {
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+}
+
+/* Líneas de tiempo dentro de los slots para mejor visualización */
+.professional-slot::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 40px; /* Mitad del slot (80px / 2) */
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border-color), transparent);
+    opacity: 0.3;
+    pointer-events: none; /* No interferir con clicks */
+}
+
+.professional-slot::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 60px; /* 3/4 del slot (80px * 0.75) */
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border-color), transparent);
+    opacity: 0.2;
+    pointer-events: none; /* No interferir con clicks */
+}
+
+/* Bloques de reserva */
+.appointment-block {
+    position: absolute !important;
+    left: 4px !important;
+    right: 4px !important;
+    border-radius: 8px !important;
+    padding: 0.5rem !important;
+    color: white !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    cursor: move !important; /* Cambiar cursor para indicar que es arrastrable */
+    transition: box-shadow 0.2s ease !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    z-index: 50 !important;
+    /* Color por defecto (se sobrescribe por data-status y data-suscripcion) */
+    background: linear-gradient(135deg, #48bb78, #38a169);
+    /* Asegurar que sea visible y clickeable */
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    user-select: none !important;
+    /* Cambiar a block para que el contenido interno se muestre correctamente */
+    display: block !important;
+    text-align: left !important;
+    /* Permitir desbordamiento para reservas largas */
+    overflow: visible !important;
+    /* Permitir que se extienda más allá del slot */
+    margin-bottom: 0 !important;
+}
+
+.appointment-block.dragging {
+    opacity: 0.95 !important; /* Mantener bien visible */
+    z-index: 99999 !important; /* Z-index muy alto para estar por encima de todo */
+    transform: scale(1.08) !important; /* Escalar un poco más para feedback visual */
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5) !important; /* Sombra más pronunciada */
+    transition: none !important;
+    position: fixed !important; /* Cambiar a fixed durante el drag para evitar problemas de contexto de apilamiento */
+    visibility: visible !important;
+    display: block !important;
+    pointer-events: auto !important;
+    /* Efecto de elevación */
+    filter: brightness(1.1) !important;
+}
+
+.appointment-block:hover {
+    transform: scale(1.02) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+    z-index: 200 !important;
+}
+
+.appointment-block:active {
+    transform: scale(0.98) !important;
+}
+
+/* Nombre del cliente en las tarjetas */
+.appointment-cliente-name {
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: white !important;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 0 2px rgba(0,0,0,0.3) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    display: block !important;
+    line-height: 1.3 !important;
+    margin-bottom: 3px !important;
+    pointer-events: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* Para reservas muy cortas, nombre más pequeño */
+.appointment-block[style*="height: 3"] .appointment-cliente-name,
+.appointment-block[style*="height: 2"] .appointment-cliente-name {
+    font-size: 0.7rem !important;
+    margin-bottom: 0 !important;
+}
+
+/* Texto simple de hora */
+.appointment-time-only {
+    font-size: 0.65rem !important;
+    font-weight: 500 !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
+    white-space: nowrap !important;
+    pointer-events: none !important;
+    display: block !important;
+    line-height: 1.1 !important;
+}
+
+/* Para reservas muy cortas, texto más pequeño */
+.appointment-block[style*="height: 3"] .appointment-time-only {
+    font-size: 0.6rem !important;
+}
+
+/* Asegurar que los elementos internos no bloqueen el click */
+.appointment-block * {
+    pointer-events: none !important;
+}
+
+.appointment-block:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    z-index: 20;
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Estilos para reservas que se extienden entre horas */
+.appointment-block[data-extends-hours="true"] {
+    border-left: 4px solid rgba(255, 255, 255, 0.8);
+    border-right: 4px solid rgba(255, 255, 255, 0.8);
+}
+
+/* Indicador visual para reservas largas */
+.appointment-block[data-duration="long"] {
+    background-image: linear-gradient(135deg, currentColor, currentColor);
+    background-size: 4px 4px;
+    background-repeat: repeat;
+    background-position: 0 0;
+}
+
+.appointment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem; /* Aumentado para mejor separación */
+    gap: 1rem; /* Aumentado para aprovechar el ancho extra */
+    flex-wrap: wrap;
+}
+
+.appointment-time {
+    font-weight: 400; /* Sin negrilla */
+    font-size: 0.8rem; /* Reducido de 0.9rem a 0.8rem */
+    opacity: 0.95;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.95);
+    flex-shrink: 0;
+    min-width: 90px; /* Aumentado para más espacio */
+    white-space: nowrap; /* Evita que el texto se corte en múltiples líneas */
+    overflow: hidden; /* Oculta el texto que se desborde */
+    text-overflow: ellipsis; /* Muestra "..." si el texto es muy largo */
+}
+
+.appointment-client {
+    font-weight: 700; /* Con negrilla */
+    font-size: 0.9rem; /* Reducido de 1rem a 0.9rem */
+    line-height: 1.2;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: white;
+    flex: 1;
+    text-align: center;
+    margin: 0 1.5rem; /* Aumentado para más espacio */
+    white-space: nowrap; /* Evita que el texto se corte en múltiples líneas */
+    overflow: hidden; /* Oculta el texto que se desborde */
+    text-overflow: ellipsis; /* Muestra "..." si el texto es muy largo */
+    max-width: 200px; /* Aumentado para más espacio */
+}
+
+.appointment-service {
+    font-size: 0.75rem; /* Reducido de 0.85rem a 0.75rem */
+    opacity: 0.9;
+    font-weight: 500;
+    line-height: 1.1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.9);
+    flex-shrink: 0;
+    min-width: 90px; /* Aumentado para más espacio */
+    text-align: right;
+    white-space: nowrap; /* Evita que el texto se corte en múltiples líneas */
+    overflow: hidden; /* Oculta el texto que se desborde */
+    text-overflow: ellipsis; /* Muestra "..." si el texto es muy largo */
+}
+
+/* Estilos para el contenido de la reserva en una sola fila */
+.appointment-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+    height: 100%;
+    flex-wrap: nowrap; /* Evita que los elementos se envuelvan a la siguiente línea */
+    overflow: hidden; /* Oculta cualquier desbordamiento */
+}
+
+/* Colores de reservas - SISTEMA SIMPLIFICADO */
+/* ========== 3 COLORES BASE + BORDE DORADO PARA SUSCRIPCIONES ========== */
+
+/* VERDE - Confirmadas (todas las reservas confirmadas/pendientes) */
+.appointment-block[data-status="confirmed"],
+.appointment-block[data-status="confirmada"],
+.appointment-block[data-status="pending"],
+.appointment-block[data-status="pendiente"] {
+    background: linear-gradient(135deg, #48bb78, #38a169) !important;
+    border: 2px solid rgba(72, 187, 120, 0.5) !important;
+    color: white !important;
+}
+
+/* GRIS - Atendidas/Completadas */
+.appointment-block[data-status="completed"],
+.appointment-block[data-status="completada"] {
+    background: linear-gradient(135deg, #4a5568, #2d3748) !important;
+    border: 2px solid rgba(74, 85, 104, 0.5) !important;
+    color: white !important;
+}
+
+/* ROJO - Inasistencias/Canceladas */
+.appointment-block[data-status="inasistencia"],
+.appointment-block[data-status="no_show"],
+.appointment-block[data-status="cancelled"],
+.appointment-block[data-status="cancelada"] {
+    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+    border: 2px solid rgba(239, 68, 68, 0.5) !important;
+    color: white !important;
+}
+
+/* BORDE DORADO PARA SUSCRIPCIONES - Se aplica a TODOS los estados */
+.appointment-block[data-suscripcion="true"] {
+    border: 3px solid #ffd700 !important;
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Indicador de suscripción - Estrella dorada visible */
+.appointment-block[data-suscripcion="true"]::after {
+    content: '⭐';
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    font-size: 1rem;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Para reservas pequeñas, estrella más pequeña */
+.appointment-block[data-suscripcion="true"][style*="height: 3"]::after,
+.appointment-block[data-suscripcion="true"][style*="height: 2"]::after {
+    font-size: 0.8rem;
+    right: 4px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .calendar-app {
+        grid-template-columns: 60px 1fr;
+    }
+    
+    .calendar-sidebar {
+        width: 60px;
+    }
+    
+    .calendar-header {
+        grid-column: 2;
+    }
+    
+    .calendar-main {
+        grid-column: 2;
+    }
+    
+    .sidebar-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+    
+    .professional-header {
+        min-width: 200px;
+    }
+    
+    .professional-slot {
+        min-width: 200px;
+    }
+}
+
+@media (max-width: 768px) {
+    .calendar-app {
+        grid-template-columns: 50px 1fr;
+    }
+    
+    .calendar-sidebar {
+        width: 50px;
+    }
+    
+    .calendar-header {
+        grid-column: 2;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .calendar-main {
+        grid-column: 2;
+        padding: 1rem;
+    }
+    
+    .sidebar-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 0.9rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .calendar-controls {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .controls-top {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .controls-left, .controls-right {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    
+    .filters {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    
+    .filter-btn, .view-btn {
+        min-width: 140px;
+        padding: 0.625rem 1rem;
+        font-size: 0.85rem;
+    }
+    
+    .today-btn {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+    }
+    
+    .date-nav-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+    }
+    
+    .current-date {
+        font-size: 1rem;
+        min-width: 100px;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .action-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+    }
+    
+    .add-btn {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+    }
+    
+    .calendar-scroll-container {
+        overflow-x: auto;
+        overflow-y: auto;
+        border-radius: 12px;
+        max-width: 100%;
+        height: calc(100dvh - 140px); /* Optimizado para móviles */
+        min-height: 500px; /* Altura mínima en móviles */
+        min-width: 600px;
+    }
+    
+    .calendar-header-row,
+    .calendar-time-row {
+        min-width: max-content;
+        flex-shrink: 0;
+    }
+    
+    .professional-header {
+        min-width: 250px;
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .professional-slot {
+        min-width: 250px;
+    }
+    
+    .time-header, .time-slot {
+        width: 80px;
+        padding: 0.75rem 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    .professional-avatar {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .professional-name {
+        font-size: 0.8rem;
+    }
+    
+    .professional-business {
+        font-size: 0.65rem;
+    }
+    
+    .logo {
+        font-size: 1.25rem;
+    }
+    
+    .notification-badge, .user-avatar {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .badge-count {
+        width: 18px;
+        height: 18px;
+        font-size: 0.7rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .calendar-app {
+        grid-template-columns: 50px 1fr;
+    }
+    
+    .calendar-sidebar {
+        width: 50px;
+    }
+    
+    .calendar-header {
+        grid-column: 2;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .calendar-main {
+        grid-column: 2;
+        padding: 1rem;
+    }
+    
+    .sidebar-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 0.9rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .calendar-controls {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .controls-top {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .controls-left, .controls-right {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    
+    .filters {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    
+    .filter-btn, .view-btn {
+        min-width: 140px;
+        padding: 0.625rem 1rem;
+        font-size: 0.85rem;
+    }
+    
+    .today-btn {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+    }
+    
+    .date-nav-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+    }
+    
+    .current-date {
+        font-size: 1rem;
+        min-width: 100px;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .action-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+    }
+    
+    .add-btn {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+    }
+    
+    .calendar-scroll-container {
+        overflow-x: auto;
+        overflow-y: auto;
+        border-radius: 12px;
+        max-width: 100%;
+        height: calc(100dvh - 140px); /* Optimizado para móviles */
+        min-height: 500px; /* Altura mínima en móviles */
+        min-width: 600px;
+    }
+    
+    .calendar-header-row,
+    .calendar-time-row {
+        min-width: max-content;
+        flex-shrink: 0;
+    }
+    
+    .professional-header {
+        min-width: 250px;
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .professional-slot {
+        min-width: 250px;
+    }
+    
+    .time-header, .time-slot {
+        width: 80px;
+        padding: 0.75rem 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    .professional-avatar {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .professional-name {
+        font-size: 0.8rem;
+    }
+    
+    .professional-business {
+        font-size: 0.65rem;
+    }
+    
+    .logo {
+        font-size: 1.25rem;
+    }
+    
+    .notification-badge, .user-avatar {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .badge-count {
+        width: 18px;
+        height: 18px;
+        font-size: 0.7rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .calendar-sidebar {
+        display: none;
+    }
+    
+    .calendar-header {
+        grid-column: 1;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .calendar-main {
+        grid-column: 1;
+        padding: 0.75rem;
+    }
+    
+    .header-controls {
+        display: none;
+    }
+    
+    .logo {
+        font-size: 1.25rem;
+    }
+    
+    .user-avatar {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .calendar-controls {
+        padding: 1rem;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+    }
+    
+    .controls-top {
+        gap: 1rem;
+    }
+    
+    .controls-left, .controls-right {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: stretch;
+    }
+    
+    .filters {
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+    }
+    
+    .filter-btn {
+        min-width: auto;
+        width: 100%;
+        justify-content: center;
+        padding: 0.75rem 1rem;
+    }
+    
+    .date-navigation {
+        justify-content: center;
+        width: 100%;
+    }
+    
+    .today-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .add-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 0.75rem 1rem;
+    }
+    
+    .action-btn {
+        width: 100%;
+        height: auto;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+    }
+    
+    .calendar-scroll-container {
+        border-radius: 12px;
+        overflow-x: auto;
+        overflow-y: auto;
+        width: 100%;
+        max-height: 70vh;
+        min-width: 500px;
+    }
+    
+    .calendar-header-row {
+        min-width: max-content;
+    }
+    
+    .time-header {
+        width: 70px;
+        padding: 0.75rem 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .time-slot {
+        width: 70px;
+        padding: 0.75rem 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .professional-header {
+        min-width: 180px;
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .professional-slot {
+        min-width: 180px;
+    }
+    
+    .professional-avatar {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .professional-name {
+        font-size: 0.75rem;
+    }
+    
+    .professional-business {
+        font-size: 0.6rem;
+    }
+    
+    .appointment-block {
+        padding: 0.5rem;
+        font-size: 0.7rem;
+    }
+    
+    .appointment-time {
+        font-size: 0.65rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .appointment-client {
+        font-size: 0.75rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .appointment-service {
+        font-size: 0.65rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendar-main {
+        padding: 0.5rem;
+    }
+    
+    .calendar-controls {
+        padding: 0.75rem;
+    }
+    
+    .controls-top {
+        gap: 0.75rem;
+    }
+    
+    .controls-left, .controls-right {
+        gap: 0.5rem;
+    }
+    
+    .filters {
+        gap: 0.5rem;
+    }
+    
+    .filter-btn, .view-btn {
+        padding: 0.625rem 0.75rem;
+        font-size: 0.8rem;
+    }
+    
+    .today-btn {
+        padding: 0.625rem 1.25rem;
+        font-size: 0.85rem;
+    }
+    
+    .add-btn {
+        padding: 0.625rem 1.25rem;
+        font-size: 0.85rem;
+    }
+    
+    .date-nav-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+    
+    .current-date {
+        font-size: 0.9rem;
+        min-width: 90px;
+        padding: 0.5rem 0.625rem;
+    }
+    
+    .time-header, .time-slot {
+        width: 60px;
+        padding: 0.625rem 0.375rem;
+        font-size: 0.75rem;
+    }
+    
+    .professional-header {
+        min-width: 180px;
+        padding: 0.625rem 0.375rem;
+    }
+    
+    .professional-slot {
+        min-width: 180px;
+    }
+    
+    .professional-avatar {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .professional-name {
+        font-size: 0.7rem;
+    }
+    
+    .professional-business {
+        font-size: 0.55rem;
+    }
+}
+
+/* Asegurar espacio adecuado antes del footer */
+.calendar-app {
+    min-height: 100dvh;
+    padding-bottom: 2rem; /* Espacio adicional antes del footer */
+}
+
+/* Contenedor del calendario en pantalla completa */
+.calendar-fullscreen-container {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    /* Habilitar scroll vertical y horizontal independiente */
+    overflow: auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 1rem;
+    position: relative;
+    /* Asegurar que el sticky funcione correctamente */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    /* Crear un nuevo contexto de apilamiento */
+    isolation: isolate;
+    will-change: scroll-position;
+    z-index: 1;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) #f1f5f9;
+}
+
+/* Personalizar scrollbars para webkit (Chrome, Safari, Edge) */
+.calendar-fullscreen-container::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.calendar-fullscreen-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 6px;
+}
+
+.calendar-fullscreen-container::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 6px;
+    border: 2px solid #f1f5f9;
+}
+
+.calendar-fullscreen-container::-webkit-scrollbar-thumb:hover {
+    background: #1E5BC6;
+}
+
+/* Scrollbar horizontal específico */
+.calendar-fullscreen-container::-webkit-scrollbar:horizontal {
+    height: 12px;
+}
+
+/* Scrollbar vertical específico */
+.calendar-fullscreen-container::-webkit-scrollbar:vertical {
+    width: 12px;
+}
+
+/* Indicadores visuales de scroll */
+.calendar-fullscreen-container.scrolled-right {
+    border-left: 3px solid var(--primary-color);
+}
+
+.calendar-fullscreen-container.scrolled-left {
+    border-right: 3px solid var(--primary-color);
+}
+
+.calendar-fullscreen-container.scrolled-down {
+    border-top: 3px solid var(--primary-color);
+}
+
+.calendar-fullscreen-container.scrolled-up {
+    border-bottom: 3px solid var(--primary-color);
+}
+
+/* Mejorar la experiencia del scroll en dispositivos táctiles */
+@media (hover: none) and (pointer: coarse) {
+    .calendar-fullscreen-container {
+        /* Scroll más suave en dispositivos táctiles */
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+        /* Hacer los scrollbars más táctiles */
+        scrollbar-width: auto;
+    }
+    
+    .calendar-fullscreen-container::-webkit-scrollbar {
+        width: 16px;
+        height: 16px;
+    }
+    
+    .calendar-fullscreen-container::-webkit-scrollbar-thumb {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+.calendar-fullscreen-container .calendar-grid {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    min-height: 1920px;
+    min-width: max-content;
+    padding: 1rem;
+    position: relative;
+    /* Asegurar que el scroll horizontal y vertical funcione */
+    width: max-content;
+    height: max-content;
+    /* Forzar que el contenido sea más ancho que el contenedor para scroll horizontal */
+    min-width: 1200px;
+    /* Forzar que el contenido sea más alto que el contenedor para scroll vertical */
+    min-height: 100vh;
+}
+
+/* Estilos para el mensaje de no profesionales */
+.no-professionals-message {
+    background: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 1rem;
+    margin: 2rem 0;
+}
+
+.no-professionals-message i {
+    color: #6c757d !important;
+}
+
+.no-professionals-message h4 {
+    color: #495057 !important;
+}
+
+.no-professionals-message p {
+    color: #6c757d !important;
+}
+
+/* Estilos específicos para el modal del calendario */
+.calendar-fullscreen-container .calendar-header-row {
+    display: flex;
+    background: var(--light-color);
+    border-bottom: 2px solid var(--border-color);
+    border-radius: 16px 16px 0 0;
+    overflow: hidden;
+    min-width: max-content;
+    width: max-content;
+    position: relative;
+    /* Forzar que las filas mantengan su ancho */
+    flex-shrink: 0;
+}
+
+.calendar-fullscreen-container .calendar-time-row {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    min-width: max-content;
+    width: max-content;
+    position: relative;
+    /* Forzar que las filas mantengan su ancho */
+    flex-shrink: 0;
+}
+
+.calendar-fullscreen-container .calendar-time-row:last-child {
+    border-bottom: none;
+    border-radius: 0 0 16px 16px;
+}
+
+.calendar-fullscreen-container .time-header {
+    width: 100px;
+    min-width: 100px;
+    height: 80px;
+    padding: 0.75rem;
+    background: var(--primary-color);
+    color: white !important;
+    font-weight: 600;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1.1rem;
+    letter-spacing: 0.5px;
+    position: sticky !important;
+    left: 0 !important;
+    top: 0 !important;
+    z-index: 999 !important;
+    /* Asegurar que el sticky funcione correctamente */
+    transform: translateZ(0) !important;
+    -webkit-transform: translateZ(0) !important;
+    backdrop-filter: blur(5px) !important;
+    -webkit-backdrop-filter: blur(5px) !important;
+    box-shadow: 1px 0 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.calendar-fullscreen-container .professional-header {
+    flex: 1;
+    min-width: 250px;
+    width: 250px;
+    padding: 1rem 0.75rem;
+    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    border-right: 1px solid var(--border-color);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    position: relative;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    flex-shrink: 0;
+}
+
+.calendar-fullscreen-container .professional-header:last-child {
+    border-right: none;
+}
+
+.calendar-fullscreen-container .professional-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--primary-color);
+    background: var(--light-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.calendar-fullscreen-container .professional-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.calendar-fullscreen-container .professional-name {
+    font-weight: 700;
+    color: var(--dark-color);
+    font-size: 0.9rem;
+    line-height: 1.2;
+}
+
+.calendar-fullscreen-container .professional-business {
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.calendar-fullscreen-container .time-slot {
+    height: 80px;
+    padding: 0.75rem;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border-right: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: var(--dark-color);
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 999 !important;
+    /* Asegurar que el sticky funcione correctamente */
+    transform: translateZ(0) !important;
+    -webkit-transform: translateZ(0) !important;
+    backdrop-filter: blur(5px) !important;
+    -webkit-backdrop-filter: blur(5px) !important;
+    box-shadow: 1px 0 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.calendar-fullscreen-container .professional-slot {
+    flex: 1;
+    min-width: 250px;
+    width: 250px;
+    padding: 0.5rem;
+    border-right: 1px solid var(--border-color);
+    background: linear-gradient(135deg, #ffffff, #fafbfc);
+    position: relative;
+    height: 80px;
+    min-height: 80px;
+    transition: background-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.calendar-fullscreen-container .professional-slot:last-child {
+    border-right: none;
+}
+
+.calendar-fullscreen-container .professional-slot:hover {
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+}
+
+.calendar-fullscreen-container .professional-slot:nth-child(even) {
+    background: linear-gradient(135deg, #fafbfc, #f8fafc);
+}
+
+.calendar-fullscreen-container .professional-slot:nth-child(even):hover {
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+}
+
+/* Líneas de tiempo dentro de los slots */
+.calendar-fullscreen-container .professional-slot::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 40px;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border-color), transparent);
+    opacity: 0.3;
+}
+
+.calendar-fullscreen-container .professional-slot::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 60px;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border-color), transparent);
+    opacity: 0.2;
+}
+
+/* Bloques de reserva en el modal */
+.calendar-fullscreen-container .appointment-block {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    border-radius: 12px;
+    padding: 0.75rem 1.25rem;
+    color: white;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(4px);
+    min-height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.calendar-fullscreen-container .appointment-block:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    z-index: 20;
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.calendar-fullscreen-container .appointment-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+    height: 100%;
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+.calendar-fullscreen-container .appointment-time {
+    font-weight: 400;
+    font-size: 0.8rem;
+    opacity: 0.95;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.95);
+    flex-shrink: 0;
+    min-width: 90px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-fullscreen-container .appointment-client {
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: white;
+    flex: 1;
+    text-align: center;
+    margin: 0 1.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.calendar-fullscreen-container .appointment-service {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    font-weight: 500;
+    line-height: 1.1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.9);
+    flex-shrink: 0;
+    min-width: 90px;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Colores de reservas en el modal - SISTEMA SIMPLIFICADO */
+/* ========== 3 COLORES BASE + BORDE DORADO PARA SUSCRIPCIONES ========== */
+
+/* VERDE - Confirmadas (todas las reservas confirmadas/pendientes) */
+.calendar-fullscreen-container .appointment-block[data-status="confirmed"],
+.calendar-fullscreen-container .appointment-block[data-status="confirmada"],
+.calendar-fullscreen-container .appointment-block[data-status="pending"],
+.calendar-fullscreen-container .appointment-block[data-status="pendiente"] {
+    background: linear-gradient(135deg, #48bb78, #38a169) !important;
+    border: 2px solid rgba(72, 187, 120, 0.5) !important;
+    color: white !important;
+}
+
+/* GRIS - Atendidas/Completadas */
+.calendar-fullscreen-container .appointment-block[data-status="completed"],
+.calendar-fullscreen-container .appointment-block[data-status="completada"] {
+    background: linear-gradient(135deg, #4a5568, #2d3748) !important;
+    border: 2px solid rgba(74, 85, 104, 0.5) !important;
+    color: white !important;
+}
+
+/* ROJO - Inasistencias/Canceladas */
+.calendar-fullscreen-container .appointment-block[data-status="inasistencia"],
+.calendar-fullscreen-container .appointment-block[data-status="no_show"],
+.calendar-fullscreen-container .appointment-block[data-status="cancelled"],
+.calendar-fullscreen-container .appointment-block[data-status="cancelada"] {
+    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+    border: 2px solid rgba(239, 68, 68, 0.5) !important;
+    color: white !important;
+}
+
+/* BORDE DORADO PARA SUSCRIPCIONES - Se aplica a TODOS los estados */
+.calendar-fullscreen-container .appointment-block[data-suscripcion="true"] {
+    border: 3px solid #ffd700 !important;
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Indicador de suscripción - Estrella dorada en fullscreen */
+.calendar-fullscreen-container .appointment-block[data-suscripcion="true"]::after {
+    content: '⭐';
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    font-size: 1.2rem;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Color por defecto para servicios no especificados en el modal */
+.calendar-fullscreen-container .appointment-block:not([data-service]) {
+    background: linear-gradient(135deg, #133A7F, #1E5BC6);
+    border-color: rgba(19, 58, 127, 0.4);
+    box-shadow: 0 4px 16px rgba(19, 58, 127, 0.3);
+}
+
+/* Asegurar que el texto sea blanco en todas las reservas del modal */
+.calendar-fullscreen-container .appointment-block,
+.calendar-fullscreen-container .appointment-block *,
+.calendar-fullscreen-container .appointment-content,
+.calendar-fullscreen-container .appointment-time,
+.calendar-fullscreen-container .appointment-client,
+.calendar-fullscreen-container .appointment-service {
+    color: white !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Título del modal en blanco */
+.modal-header .modal-title {
+    color: white !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Personalizar scrollbars del contenedor del calendario */
+.calendar-fullscreen-container::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.calendar-fullscreen-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 6px;
+}
+
+.calendar-fullscreen-container::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 6px;
+    border: 2px solid #f1f5f9;
+}
+
+.calendar-fullscreen-container::-webkit-scrollbar-thumb:hover {
+    background: #1E5BC6;
+}
+
+/* Scrollbar para Firefox */
+.calendar-fullscreen-container {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) #f1f5f9;
+}
+
+/* Optimizaciones para móviles */
+@media (max-width: 768px) {
+    /* Mejorar rendimiento del scroll */
+    .calendar-scroll-container {
+        will-change: scroll-position;
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+    }
+    
+    /* Optimizar animaciones en móviles */
+    .appointment-block {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .appointment-block:hover {
+        transform: translateY(-2px) scale(1.01);
+    }
+    
+    /* Mejorar contraste en móviles */
+    .time-slot {
+        background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+        color: #1e293b;
+        font-weight: 600;
+    }
+    
+    .professional-slot {
+        background: linear-gradient(135deg, #ffffff, #f8fafc);
+    }
+    
+    /* Ajustar espaciado para mejor legibilidad */
+    .calendar-controls {
+        margin-bottom: 1rem;
+    }
+    
+    .calendar-scroll-container {
+        margin-bottom: 1.5rem; /* Aumentado para mejor separación */
+    }
+}
+
+/* Mejoras para pantallas muy pequeñas */
+@media (max-width: 480px) {
+    .calendar-app {
+        padding-bottom: 1rem;
+    }
+    
+    /* Hacer el calendario más compacto */
+    .calendar-time-row {
+        height: 50px;
+    }
+    
+    .time-slot {
+        height: 50px;
+        font-size: 0.7rem;
+    }
+    
+    .professional-slot {
+        min-height: 50px;
+    }
+    
+    /* Ajustar bloques de reserva */
+    .appointment-block {
+        padding: 0.375rem;
+        font-size: 0.65rem;
+        border-radius: 6px;
+    }
+    
+    .appointment-content {
+        gap: 0.125rem;
+    }
+    
+    .appointment-time,
+    .appointment-client,
+    .appointment-service {
+        font-size: 0.6rem;
+    }
+}
+
+/* Mejoras para dispositivos táctiles */
+@media (hover: none) and (pointer: coarse) {
+    .sidebar-icon,
+    .date-nav-btn,
+    .action-btn,
+    .notification-badge,
+    .user-avatar {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    .filter-btn, .view-btn, .today-btn, .add-btn {
+        min-height: 44px;
+    }
+    
+    .appointment-block {
+        cursor: pointer;
+        -webkit-tap-highlight-color: rgba(19, 58, 127, 0.2);
+    }
+    
+    .appointment-block:active {
+        transform: scale(0.98);
+    }
+    
+    /* Mejorar scroll en dispositivos táctiles */
+    .calendar-scroll-container {
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+        touch-action: pan-x pan-y;
+    }
+    
+    /* Hacer las barras de scroll más táctiles */
+    .calendar-scroll-container::-webkit-scrollbar {
+        height: 16px;
+        width: 16px;
+    }
+    
+    .calendar-scroll-container::-webkit-scrollbar-thumb {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* Orientación landscape en móviles */
+@media (max-width: 1024px) and (orientation: landscape) {
+    .calendar-main {
+        padding: 1rem;
+    }
+    
+    .controls-top {
+        flex-direction: row;
+        gap: 1rem;
+    }
+    
+    .controls-left, .controls-right {
+        flex-direction: row;
+        gap: 0.75rem;
+    }
+    
+    .filters {
+        flex-direction: row;
+        gap: 0.75rem;
+    }
+}
+
+/* Mejoras específicas para móviles */
+@media (max-width: 768px) {
+    /* Hacer el calendario más compacto en móviles */
+    .calendar-time-row {
+        height: 60px;
+    }
+    
+    .time-slot {
+        height: 60px;
+    }
+    
+    .professional-slot {
+        min-height: 60px;
+    }
+    
+    /* Ajustar bloques de reserva para móviles */
+    .appointment-block {
+        font-size: 0.7rem;
+        padding: 0.5rem;
+        border-radius: 8px;
+    }
+    
+    .appointment-content {
+        flex-direction: column;
+        gap: 0.25rem;
+        text-align: center;
+    }
+    
+    .appointment-time,
+    .appointment-client,
+    .appointment-service {
+        font-size: 0.65rem;
+        margin: 0;
+        text-align: center;
+    }
+    
+    /* Mejorar navegación táctil */
+    .date-navigation {
+        gap: 0.5rem;
+    }
+    
+    .date-nav-btn {
+        min-width: 44px;
+        min-height: 44px;
+    }
+    
+    /* Hacer botones más táctiles */
+    .today-btn,
+    .add-btn {
+        min-height: 44px;
+        font-size: 0.9rem;
+    }
+    
+    /* Ajustar filtros para móviles */
+    .filter-dropdown {
+        width: 100%;
+    }
+    
+    .filter-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* Orientación landscape en móviles */
+@media (max-width: 1024px) and (orientation: landscape) {
+    .calendar-main {
+        padding: 1rem;
+    }
+    
+    .controls-top {
+        flex-direction: row;
+        gap: 1rem;
+    }
+    
+    .controls-left, .controls-right {
+        flex-direction: row;
+        gap: 0.75rem;
+    }
+    
+    .filters {
+        flex-direction: row;
+        gap: 0.75rem;
+    }
+}
+
+/* Sistema de mensajes */
+.mensaje {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    transform: translateX(400px);
+    transition: all 0.3s ease;
+    max-width: 400px;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Mejoras para modales en móviles */
+@media (max-width: 768px) {
+    .modal-dialog {
+        margin: 1rem;
+        max-width: calc(100% - 2rem);
+    }
+    
+    .modal-content {
+        border-radius: 12px;
+    }
+    
+    .modal-header {
+        padding: 1rem;
+    }
+    
+    .modal-body {
+        padding: 1rem;
+    }
+    
+    .modal-footer {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .modal-footer .btn {
+        width: 100%;
+        margin: 0;
+    }
+    
+    /* Ajustar formularios en móviles */
+    .form-label {
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    
+    .form-control, .form-select {
+        font-size: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        box-shadow: 0 0 0 0.2rem rgba(19, 58, 127, 0.25);
+    }
+    
+    .calendar-fullscreen-container {
+        padding: 0.5rem;
+    }
+    
+    .calendar-fullscreen-container .calendar-grid {
+        padding: 0.5rem;
+        border-radius: 12px;
+    }
+    
+    /* Ajustes específicos del calendario en móviles */
+    .calendar-fullscreen-container .professional-header {
+        min-width: 200px;
+        width: 200px;
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .calendar-fullscreen-container .professional-slot {
+        min-width: 200px;
+        width: 200px;
+    }
+    
+    .calendar-fullscreen-container .time-header,
+    .calendar-fullscreen-container .time-slot {
+        width: 80px;
+        min-width: 80px;
+        padding: 0.75rem 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    .calendar-fullscreen-container .professional-avatar {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .calendar-fullscreen-container .professional-name {
+        font-size: 0.8rem;
+    }
+    
+    .calendar-fullscreen-container .professional-business {
+        font-size: 0.65rem;
+    }
+    
+    .calendar-fullscreen-container .appointment-block {
+        padding: 0.5rem;
+        font-size: 0.7rem;
+    }
+    
+    .calendar-fullscreen-container .appointment-content {
+        flex-direction: column;
+        gap: 0.25rem;
+        text-align: center;
+    }
+    
+    .calendar-fullscreen-container .appointment-time,
+    .calendar-fullscreen-container .appointment-client,
+    .calendar-fullscreen-container .appointment-service {
+        font-size: 0.65rem;
+        margin: 0;
+        text-align: center;
+    }
+
+}
+
+.mensaje.mostrar {
+    transform: translateX(0);
+}
+
+.mensaje i {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.mensaje span {
+    line-height: 1.4;
+}
+
+/* Estados específicos de mensajes */
+.mensaje-success {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.mensaje-error {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.mensaje-warning {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.mensaje-info {
+    background: linear-gradient(135deg, #1E5BC6, #133A7F);
+}
+
+/* =========================================================================
+   OVERRIDE AUTORITATIVO v4 — Responsividad + posicionamiento exacto
+   Este bloque va al final del <style> para ganar en la cascada.
+   Corrige: desfase de reservas (slot 80px en JS vs 60/50px en CSS),
+   espacios muertos (min-width:1200px), columnas no responsivas y header
+   de profesionales sin sticky vertical.
+   ========================================================================= */
+:root {
+    --cal-slot-h: 64px;   /* altura de 1 hora (constante en todos los breakpoints) */
+    --cal-time-w: 68px;   /* ancho de la columna de horas */
+    --cal-col-min: 200px; /* ancho mínimo de cada columna de profesional */
+}
+
+/* La app no debe forzar 100dvh dentro del <main> (que ya tiene padding-top) */
+.calendar-app {
+    min-height: auto !important;
+    padding-bottom: 0 !important;
+}
+
+/* Contenedor con scroll: alto adaptado a viewport menos header del sitio */
+.calendar-fullscreen-container {
+    height: calc(100dvh - 80px - 150px) !important; /* header sitio + header calendario + info */
+    min-height: 420px !important;
+    padding: 0 !important;
+    overflow: auto !important;
+}
+
+/* Grid: llena el ancho con pocas columnas, hace scroll con muchas. Sin 1200px.
+   width:max-content permite que crezca con muchos profesionales (scroll-x);
+   min-width:100% llena el contenedor cuando hay pocas columnas. */
+.calendar-fullscreen-container .calendar-grid {
+    width: max-content !important;
+    min-width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+}
+
+/* Filas: al menos el ancho del contenido (scroll) pero pueden estirarse al 100% */
+.calendar-fullscreen-container .calendar-header-row,
+.calendar-fullscreen-container .calendar-time-row {
+    display: flex !important;
+    width: 100% !important;
+    min-width: max-content !important;
+    flex-shrink: 0 !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+}
+
+/* Header de fila de profesionales: sticky vertical para no perder contexto */
+.calendar-fullscreen-container .calendar-header-row {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 30 !important;
+}
+
+/* Columna de horas (header y celdas): ancho fijo, mismo en header y filas */
+.calendar-fullscreen-container .time-header-fixed,
+.calendar-fullscreen-container .time-header,
+.calendar-fullscreen-container .time-slot {
+    flex: 0 0 var(--cal-time-w) !important;
+    width: var(--cal-time-w) !important;
+    min-width: var(--cal-time-w) !important;
+    max-width: var(--cal-time-w) !important;
+    height: var(--cal-slot-h) !important;
+    padding: 0.25rem !important;
+    font-size: 0.78rem !important;
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 25 !important;
+}
+/* La esquina (Hora) debe ir por encima de la columna de horas */
+.calendar-fullscreen-container .calendar-header-row .time-header-fixed,
+.calendar-fullscreen-container .calendar-header-row .time-header {
+    z-index: 35 !important;
+    top: 0 !important;
+    background: var(--primary-color) !important;
+    color: #fff !important;
+}
+
+/* Columnas de profesional: flex para llenar o hacer scroll, alto = slot */
+.calendar-fullscreen-container .professional-header,
+.calendar-fullscreen-container .professional-slot {
+    flex: 1 1 var(--cal-col-min) !important;
+    width: auto !important;
+    min-width: var(--cal-col-min) !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+}
+.calendar-fullscreen-container .professional-slot {
+    height: var(--cal-slot-h) !important;
+    min-height: var(--cal-slot-h) !important;
+    padding: 0 !important;
+    overflow: visible !important;
+}
+.calendar-fullscreen-container .professional-header {
+    height: auto !important;
+    min-height: var(--cal-slot-h) !important;
+    padding: 0.6rem 0.5rem !important;
+}
+
+/* Líneas guía internas a la mitad y 3/4 del slot, recalculadas con la var */
+.calendar-fullscreen-container .professional-slot::before { top: calc(var(--cal-slot-h) * 0.5) !important; }
+.calendar-fullscreen-container .professional-slot::after  { top: calc(var(--cal-slot-h) * 0.75) !important; }
+
+/* Bloques de reserva: el left/right/width los controla el JS (lanes). */
+.calendar-fullscreen-container .appointment-block {
+    position: absolute !important;
+    border-radius: 7px !important;
+    padding: 4px 7px !important;
+    min-height: 18px !important;
+    overflow: hidden !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.22) !important;
+    border: 1.5px solid rgba(255,255,255,0.25) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    z-index: 40 !important;
+}
+.calendar-fullscreen-container .appointment-block:hover {
+    transform: none !important;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35) !important;
+    z-index: 60 !important;
+    filter: brightness(1.05) !important;
+}
+.calendar-fullscreen-container .appointment-cliente-name {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+    margin-bottom: 1px !important;
+}
+.calendar-fullscreen-container .appointment-time-only {
+    font-size: 0.62rem !important;
+    font-weight: 500 !important;
+    line-height: 1.05 !important;
+    opacity: 0.95 !important;
+}
+/* La estrella de suscripción no debe tapar el texto en bloques angostos */
+.calendar-fullscreen-container .appointment-block[data-suscripcion="true"]::after {
+    top: 4px !important;
+    right: 5px !important;
+    transform: none !important;
+    font-size: 0.8rem !important;
+}
+
+/* Ajustes responsivos: solo cambian anchos, NUNCA la altura del slot */
+@media (max-width: 992px) {
+    :root { --cal-time-w: 60px; --cal-col-min: 175px; }
+    .calendar-fullscreen-container { height: calc(100dvh - 70px - 170px) !important; }
+}
+@media (max-width: 768px) {
+    :root { --cal-time-w: 54px; --cal-col-min: 155px; }
+    .calendar-fullscreen-container {
+        height: calc(100dvh - 60px - 175px) !important;
+        border-radius: 10px !important;
+    }
+    .calendar-fullscreen-container .professional-name { font-size: 0.8rem !important; }
+    .calendar-fullscreen-container .professional-business { font-size: 0.62rem !important; }
+    .calendar-fullscreen-container .professional-avatar { width: 38px !important; height: 38px !important; }
+}
+@media (max-width: 480px) {
+    :root { --cal-time-w: 46px; --cal-col-min: 130px; }
+    .calendar-fullscreen-container .time-header-fixed,
+    .calendar-fullscreen-container .time-header,
+    .calendar-fullscreen-container .time-slot { font-size: 0.66rem !important; }
+    .calendar-fullscreen-container .professional-header { padding: 0.45rem 0.3rem !important; }
+    .calendar-fullscreen-container .professional-avatar { width: 30px !important; height: 30px !important; border-width: 2px !important; }
+    .calendar-fullscreen-container .professional-name { font-size: 0.72rem !important; }
+    .calendar-fullscreen-container .appointment-cliente-name { font-size: 0.66rem !important; }
+    .calendar-fullscreen-container .appointment-time-only { font-size: 0.56rem !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="calendar-app">
+    <!-- Sidebar izquierdo -->
+    <div class="calendar-sidebar">
+        <div class="sidebar-icon active">
+            <i class="bi bi-calendar3"></i>
+        </div>
+        <div class="sidebar-icon">
+            <i class="bi bi-people"></i>
+        </div>
+        <div class="sidebar-icon">
+            <i class="bi bi-graph-up"></i>
+        </div>
+    </div>
+
+    <!-- Header principal mejorado -->
+    <div class="calendar-header">
+        <div class="header-left">
+            <a href="{% url 'negocios:panel_negocio' negocio.id %}" class="btn btn-link text-decoration-none p-0 me-3" title="Volver al panel">
+                <i class="bi bi-arrow-left fs-4"></i>
+            </a>
+            <div class="header-title-section">
+                <h1 class="logo mb-0">Calendario de Reservas</h1>
+                <small class="text-muted">{{ negocio.nombre }}</small>
+            </div>
+        </div>
+        <div class="header-center">
+            <div class="date-navigation-header">
+                <button class="nav-btn-large" onclick="anteriorDia()" title="Día anterior">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <div class="current-date-large" id="fechaActualHeader" title="Cambiar fecha">
+                    <span class="date-day" id="fechaDia">{{ fecha_actual|date:"d" }}</span>
+                    <span class="date-month" id="fechaMesAno">{{ fecha_actual|date:"F Y" }}</span>
+                    <span class="date-weekday" id="fechaDiaSemana">{{ fecha_actual|date:"l" }}</span>
+                </div>
+                <input type="date" id="fechaPickerHeader" class="fecha-picker-header" value="{{ fecha_actual|date:'Y-m-d' }}">
+                <button class="nav-btn-large" onclick="siguienteDia()" title="Día siguiente">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+                <button class="today-btn-header" onclick="irHoy()">Hoy</button>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="action-btn" onclick="refrescarCalendario()" title="Refrescar">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="add-btn-header" onclick="nuevaReserva()">
+                <i class="bi bi-plus-lg me-1"></i> Nueva Reserva
+            </button>
+        </div>
+    </div>
+
+    <!-- Contenido principal -->
+    <div class="calendar-main">
+        <!-- Info rápida del calendario -->
+        <div class="calendar-quick-info">
+            <div class="info-card">
+                <i class="bi bi-people text-primary"></i>
+                <span><strong id="professionalsCount">{{ profesionales|length|default:0 }}</strong> profesionales</span>
+            </div>
+            <div class="info-card">
+                <i class="bi bi-calendar-check text-success"></i>
+                <span><strong id="reservasCount">0</strong> reservas hoy</span>
+            </div>
+            <div class="info-card info-legend">
+                <span class="legend-item"><span class="dot" style="background: linear-gradient(135deg, #48bb78, #38a169);"></span> Confirmada</span>
+                <span class="legend-item"><span class="dot" style="background: linear-gradient(135deg, #3182ce, #2b6cb0); border: 2px solid #ffd700;"></span> Suscriptor</span>
+                <span class="legend-item"><span class="dot" style="background: linear-gradient(135deg, #4a5568, #2d3748);"></span> Atendida</span>
+                <span class="legend-item"><span class="dot" style="background: linear-gradient(135deg, #f687b3, #ed64a6);"></span> Inasistencia</span>
+            </div>
+            <div class="info-card" id="infoCardFecha" style="background: linear-gradient(135deg, var(--primary-color), #1E5BC6); color: white;">
+                <i class="bi bi-calendar-event"></i>
+                <span><strong id="fechaDisplay">{{ fecha_actual|date:"l d \d\e F \d\e Y" }}</strong></span>
+            </div>
+        </div>
+
+                <!-- Contenedor del calendario en pantalla completa -->
+                <div class="calendar-fullscreen-container" id="calendarFullContainer">
+                    <!-- Grid del calendario con header y filas de tiempo -->
+                    <div class="calendar-grid" id="calendarGrid">
+                        <!-- El contenido se generará dinámicamente -->
+                    </div>
+                </div>
+
+    </div>
+</div>
+
+<!-- Modal para detalles de reserva -->
+<style>
+/* FORZAR Z-INDEX ALTO PARA MODAL DE DETALLES */
+#modalDetallesReserva {
+    z-index: 10001 !important;
+    position: fixed !important;
+}
+#modalDetallesReserva .modal-dialog {
+    z-index: 10002 !important;
+    position: relative !important;
+}
+#modalDetallesReserva .modal-content {
+    z-index: 10003 !important;
+    position: relative !important;
+    background: white !important;
+}
+#backdropDetallesReserva {
+    z-index: 10000 !important;
+}
+</style>
+<div class="modal" id="modalDetallesReserva" tabindex="-1" aria-labelledby="modalDetallesLabel" aria-hidden="true" style="display: none;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="modalDetallesLabel">
+                    <i class="bi bi-calendar-check me-2"></i>Detalles de la Reserva
+                </h5>
+                <button type="button" class="btn-close btn-close-white" onclick="cerrarModalDetalles()" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" id="modalDetallesBody">
+                <!-- Contenido dinámico -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModalDetalles()">
+                    <i class="bi bi-x-lg me-1"></i>Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmación Personalizado -->
+<style>
+#modalConfirmacion {
+    z-index: 11000 !important;
+}
+#modalConfirmacion .modal-dialog {
+    z-index: 11001 !important;
+    max-width: 400px;
+}
+#modalConfirmacion .modal-content {
+    z-index: 11002 !important;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+#backdropConfirmacion {
+    z-index: 10999 !important;
+}
+.modal-confirmacion-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 2.5rem;
+}
+.modal-confirmacion-icon.success {
+    background: linear-gradient(135deg, #d4edda, #c3e6cb);
+    color: #155724;
+}
+.modal-confirmacion-icon.warning {
+    background: linear-gradient(135deg, #fce4ec, #f8bbd9);
+    color: #c2185b;
+}
+</style>
+<div class="modal" id="modalConfirmacion" tabindex="-1" aria-hidden="true" style="display: none;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="modal-confirmacion-icon" id="iconoConfirmacion">
+                    <i class="bi bi-question-lg"></i>
+                </div>
+                <h5 class="mb-3" id="tituloConfirmacion">¿Estás seguro?</h5>
+                <p class="text-muted mb-4" id="mensajeConfirmacion">Esta acción no se puede deshacer.</p>
+                <div class="d-flex gap-3 justify-content-center">
+                    <button type="button" class="btn btn-outline-secondary px-4" onclick="cerrarModalConfirmacion()">
+                        <i class="bi bi-x-lg me-1"></i>Cancelar
+                    </button>
+                    <button type="button" class="btn px-4" id="btnConfirmarAccion" onclick="ejecutarAccionConfirmada()">
+                        <i class="bi bi-check-lg me-1"></i>Confirmar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para nueva reserva con cliente provisional (desde click en slot) -->
+<div class="modal fade" id="modalNuevaReservaProvisional" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nueva Reserva - Cliente Provisional</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNuevaReservaProvisional">
+                    <input type="hidden" name="es_cliente_provisional" value="true">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Nombre del Cliente <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="nombre_cliente" required placeholder="Ej: Juan Pérez">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Teléfono <span class="text-danger">*</span></label>
+                                <input type="tel" class="form-control" name="telefono_cliente" required placeholder="Ej: +57 300 123 4567">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Servicio <span class="text-danger">*</span></label>
+                                <select class="form-select" name="servicio" id="servicioProvisional" required>
+                                    <option value="">Seleccionar servicio</option>
+                                    <!-- Se llenará dinámicamente -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Profesional <span class="text-danger">*</span></label>
+                                <select class="form-select" name="profesional" id="profesionalProvisional" required>
+                                    <option value="">Seleccionar profesional</option>
+                                    <!-- Se llenará dinámicamente -->
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Fecha <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" name="fecha" id="fechaProvisional" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Hora <span class="text-danger">*</span></label>
+                                <input type="time" class="form-control" name="hora_inicio" id="horaProvisional" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notas (opcional)</label>
+                        <textarea class="form-control" name="notas" rows="3" placeholder="Notas adicionales sobre la reserva..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" form="formNuevaReservaProvisional" class="btn btn-primary">Crear Reserva</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para nueva reserva (cliente con cuenta) -->
+<div class="modal fade" id="modalNuevaReserva" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nueva Reserva</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNuevaReserva">
+                <div class="row">
+                    <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Cliente</label>
+                                <input type="text" class="form-control" name="cliente" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Servicio</label>
+                                <select class="form-select" name="servicio" required>
+                                    <option value="">Seleccionar servicio</option>
+                                    <option value="corte">Corte de cabello</option>
+                                    <option value="color">Coloración</option>
+                                    <option value="peinado">Peinado</option>
+                                    <option value="tratamiento">Tratamiento</option>
+                                    <option value="masaje">Masaje</option>
+                                    <option value="manicure">Manicure</option>
+                                    <option value="pedicure">Pedicure</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Profesional</label>
+                                <select class="form-select" name="profesional" required>
+                                    <option value="">Seleccionar profesional</option>
+                                    <!-- Se llenará dinámicamente -->
+                                </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Fecha</label>
+                                <input type="date" class="form-control" name="fecha" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Hora</label>
+                                <input type="time" class="form-control" name="hora" required>
+                            </div>
+                    </div>
+                </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notas</label>
+                        <textarea class="form-control" name="notas" rows="3"></textarea>
+            </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" form="formNuevaReserva" class="btn btn-primary">Crear Reserva</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let fechaSeleccionada = '{{ fecha_actual|date:"Y-m-d" }}';
+let profesionales = [];
+let reservas = [];
+
+// Cargar profesionales del negocio
+async function cargarProfesionales() {
+    try {
+        console.log('Cargando profesionales...');
+        const response = await fetch(`/negocios/{{ negocio.id }}/api/profesionales/`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        profesionales = data.profesionales || [];
+        console.log('Profesionales cargados:', profesionales);
+        console.log('Datos completos de la API:', data);
+        
+        // Llenar dropdown de profesionales en el modal
+        llenarDropdownProfesionales();
+        llenarDropdownProfesionalesProvisional(); // También para el modal provisional
+        
+        generarCalendario();
+        
+    } catch (error) {
+        console.error('Error cargando profesionales:', error);
+        // Si falla la API, usar profesionales básicos
+        profesionales = [
+            { id: 1, nombre: 'María González', foto_perfil: null },
+            { id: 2, nombre: 'Carlos Rodríguez', foto_perfil: null },
+            { id: 3, nombre: 'Ana Martínez', foto_perfil: null },
+            { id: 4, nombre: 'Luis Pérez', foto_perfil: null }
+        ];
+        llenarDropdownProfesionales();
+        llenarDropdownProfesionalesProvisional();
+        generarCalendario();
+    }
+}
+
+// Cargar profesionales sin generar calendario (para la vista principal)
+async function cargarProfesionalesSinCalendario() {
+    try {
+        console.log('Cargando profesionales para dropdown...');
+        const response = await fetch(`/negocios/{{ negocio.id }}/api/profesionales/`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        profesionales = data.profesionales || [];
+        console.log('Profesionales cargados:', profesionales);
+        
+        // Llenar dropdown de profesionales en el modal
+        llenarDropdownProfesionales();
+        
+    } catch (error) {
+        console.error('Error cargando profesionales:', error);
+        // Si falla la API, usar profesionales básicos
+        profesionales = [
+            { id: 1, nombre: 'María González', foto_perfil: null },
+            { id: 2, nombre: 'Carlos Rodríguez', foto_perfil: null },
+            { id: 3, nombre: 'Ana Martínez', foto_perfil: null },
+            { id: 4, nombre: 'Luis Pérez', foto_perfil: null }
+        ];
+        llenarDropdownProfesionales();
+    }
+}
+
+// Función para llenar el dropdown de profesionales en el modal
+function llenarDropdownProfesionales() {
+    const selectProfesional = document.querySelector('select[name="profesional"]');
+    if (selectProfesional && profesionales.length > 0) {
+        // Limpiar opciones existentes
+        selectProfesional.innerHTML = '<option value="">Seleccionar profesional</option>';
+        
+        // Agregar opciones de profesionales
+        profesionales.forEach(profesional => {
+            const option = document.createElement('option');
+            option.value = profesional.id;
+            option.textContent = profesional.nombre || profesional.nombre_completo || 'Profesional';
+            selectProfesional.appendChild(option);
+        });
+    }
+    
+    // Actualizar contador de profesionales en la vista principal
+    actualizarContadorProfesionales();
+}
+
+// Función para llenar el dropdown de profesionales en el modal provisional
+function llenarDropdownProfesionalesProvisional() {
+    const selectProfesional = document.getElementById('profesionalProvisional');
+    if (selectProfesional && profesionales.length > 0) {
+        // Limpiar opciones existentes
+        selectProfesional.innerHTML = '<option value="">Seleccionar profesional</option>';
+        
+        // Agregar opciones de profesionales
+        profesionales.forEach(profesional => {
+            const option = document.createElement('option');
+            option.value = profesional.id;
+            option.textContent = profesional.nombre || profesional.nombre_completo || 'Profesional';
+            selectProfesional.appendChild(option);
+        });
+    }
+}
+
+// Función para actualizar el contador de profesionales en la vista principal
+function actualizarContadorProfesionales() {
+    const contadorElement = document.getElementById('professionalsCount');
+    if (contadorElement) {
+        if (profesionales && profesionales.length > 0) {
+            contadorElement.textContent = profesionales.length;
+            contadorElement.className = 'text-success fw-bold';
+        } else {
+            contadorElement.textContent = '0';
+            contadorElement.className = 'text-warning fw-bold';
+        }
+    }
+}
+
+// Cargar reservas del día desde la base de datos
+async function cargarReservas() {
+    try {
+        console.log('=== CARGANDO RESERVAS ===');
+        console.log('Fecha seleccionada:', fechaSeleccionada);
+        
+        // Verificar que la fecha sea válida
+        if (!fechaSeleccionada) {
+            console.warn('Fecha no válida, usando fecha actual');
+            fechaSeleccionada = new Date().toISOString().split('T')[0];
+        }
+        
+        const url = `/negocios/{{ negocio.id }}/api/reservas/?fecha=${fechaSeleccionada}`;
+        console.log('URL de la API:', url);
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        console.log('Status de respuesta:', response.status, response.statusText);
+        
+        if (response.ok) {
+            const data = await response.json();
+            reservas = data.reservas || [];
+            console.log('✅ Reservas cargadas exitosamente:', reservas.length);
+            console.log('📋 Datos de reservas:', reservas);
+        } else if (response.status === 404) {
+            console.log('ℹ️ No hay reservas para esta fecha');
+            reservas = [];
+        } else if (response.status === 500) {
+            console.error('❌ Error del servidor (500) - Verificar logs del backend');
+            reservas = [];
+            mostrarErrorServidor();
+        } else {
+            console.warn(`⚠️ Respuesta no exitosa: ${response.status}`);
+            reservas = [];
+        }
+        
+    } catch (error) {
+        console.error('❌ Error de conexión al cargar reservas:', error);
+        reservas = [];
+        mostrarErrorConexion();
+    } finally {
+        console.log('🔄 Ejecutando mostrarReservasEnCalendario()...');
+        // Siempre mostrar el calendario, aunque esté vacío
+        mostrarReservasEnCalendario();
+    }
+}
+
+// Función para calcular la duración del servicio en minutos
+function calcularDuracionServicio(horaInicio, horaFin) {
+    const inicio = new Date(`2000-01-01 ${horaInicio}`);
+    const fin = new Date(`2000-01-01 ${horaFin}`);
+    return Math.round((fin - inicio) / (1000 * 60));
+}
+
+// Función para obtener el color del servicio basado en el tipo
+function obtenerColorServicio(tipoServicio) {
+    const colores = {
+        'corte': '#f97316',      // Naranja
+        'color': '#1E5BC6',      // Azul
+        'peinado': '#ec4899',    // Rosa
+        'tratamiento': '#14b8a6', // Verde azulado
+        'masaje': '#8b5cf6',     // Púrpura
+        'manicure': '#f59e0b',   // Amarillo
+        'pedicure': '#10b981',   // Verde
+        'default': '#133A7F'     // Color primario por defecto
+    };
+    
+    const tipo = tipoServicio.toLowerCase();
+    for (const [key, color] of Object.entries(colores)) {
+        if (tipo.includes(key)) {
+            return color;
+        }
+    }
+    return colores.default;
+}
+
+// Altura real de un slot de 1 hora (lee la variable CSS --cal-slot-h).
+// Así el posicionamiento de reservas coincide exactamente con la grilla
+// en cualquier tamaño de pantalla (corrige el desfase).
+function obtenerAlturaSlot() {
+    // Preferir medir un slot real del DOM (más fiable que la variable)
+    const slot = document.querySelector('.professional-slot');
+    if (slot) {
+        const h = slot.getBoundingClientRect().height;
+        if (h && h > 10) return h;
+    }
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--cal-slot-h');
+    const px = parseFloat(raw);
+    return (px && px > 10) ? px : 64;
+}
+
+// Convierte "HH:MM[:SS]" en minutos desde 00:00
+function horaAMinutos(hora) {
+    if (!hora) return 0;
+    const partes = String(hora).split(':');
+    const h = parseInt(partes[0], 10) || 0;
+    const m = parseInt(partes[1], 10) || 0;
+    return h * 60 + m;
+}
+
+// Generar el calendario
+function generarCalendario() {
+    const calendarGrid = document.getElementById('calendarGrid');
+    if (!calendarGrid) return;
+    
+    // Verificar que hay profesionales cargados
+    console.log('Generando calendario con profesionales:', profesionales);
+    
+    if (!profesionales || profesionales.length === 0) {
+        console.warn('No hay profesionales matriculados en este negocio');
+        // Mostrar mensaje de que no hay profesionales
+        calendarGrid.innerHTML = `
+            <div class="no-professionals-message">
+                <div class="text-center p-5">
+                    <i class="bi bi-person-x fs-1 text-muted mb-3"></i>
+                    <h4 class="text-muted">No hay profesionales matriculados</h4>
+                    <p class="text-muted">Este negocio no tiene profesionales aprobados para mostrar en el calendario.</p>
+                    <p class="text-muted small">Los profesionales deben solicitar matrícula y ser aprobados para aparecer aquí.</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Generar horas de 0:00 AM a 23:00 PM (24 horas completas)
+    const horas = [];
+    for (let i = 0; i <= 23; i++) {
+        horas.push(i);
+    }
+    
+    // La altura de cada slot la define el CSS (var --cal-slot-h). No forzar px aquí
+    // para evitar el desfase entre JS y CSS responsivo.
+    calendarGrid.style.height = '';
+    calendarGrid.style.minHeight = '';
+
+    console.log(`Calendario generado: ${horas.length} horas, slot=${obtenerAlturaSlot()}px, ${profesionales.length} profesionales`);
+    
+    let html = `
+        <div class="calendar-header-row">
+            <div class="time-header-fixed">Hora</div>
+    `;
+    
+            // Headers de profesionales
+        profesionales.forEach(profesional => {
+            // Usar la foto de perfil real del profesional si está disponible, sino usar la imagen por defecto
+            const fotoPerfil = profesional.foto_perfil ? `/media/${profesional.foto_perfil}` : null;
+            
+            // Debug: mostrar información del profesional
+            console.log('Profesional:', {
+                id: profesional.id,
+                nombre: profesional.nombre,
+                foto_perfil: profesional.foto_perfil,
+                fotoPerfil: fotoPerfil
+            });
+            
+            html += `
+                <div class="professional-header">
+                    <div class="professional-avatar">
+                        <img src="${fotoPerfil}" 
+                             alt="${profesional.nombre || 'Profesional'}" 
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <i class="bi bi-person-circle fs-1 text-muted" style="display: none;"></i>
+                    </div>
+                    <div class="professional-name">${profesional.nombre || 'Profesional'}</div>
+                    <div class="professional-business">{{ negocio.nombre }}</div>
+                </div>
+            `;
+        });
+    
+    html += '</div>';
+    
+    // Filas de tiempo
+    horas.forEach(hora => {
+        html += `
+            <div class="calendar-time-row">
+                <div class="time-slot">${hora}:00</div>
+        `;
+        
+        // Slots para cada profesional
+        profesionales.forEach(profesional => {
+            html += `
+                <div class="professional-slot" data-hora="${hora}" data-profesional="${profesional.id}">
+                    <!-- Aquí se mostrarán las reservas -->
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+    });
+    
+    calendarGrid.innerHTML = html;
+    
+    // Cargar reservas después de generar el calendario
+    setTimeout(() => {
+        cargarReservas();
+    }, 100);
+}
+
+// Función para agregar listeners a los slots del calendario (usando delegación de eventos)
+function agregarListenersSlots() {
+    const calendarGrid = document.getElementById('calendarGrid');
+    if (!calendarGrid) {
+        console.warn('No se encontró calendarGrid para agregar listeners');
+        return;
+    }
+    
+    // Usar delegación de eventos en el contenedor principal
+    // Esto asegura que funcione incluso después de modificar el DOM
+    calendarGrid.removeEventListener('click', manejarClickSlotDelegado);
+    calendarGrid.addEventListener('click', manejarClickSlotDelegado);
+    console.log('✅ Listeners de slots agregados usando delegación de eventos');
+}
+
+// Función para manejar clicks en slots vacíos (usando delegación de eventos)
+function manejarClickSlotDelegado(e) {
+    // Buscar el slot más cercano
+    const slot = e.target.closest('.professional-slot');
+    if (!slot) {
+        return; // No se hizo click en un slot
+    }
+    
+    // No hacer nada si se hizo click directamente en una reserva o si hay una reserva siendo arrastrada
+    if (e.target.closest('.appointment-block') || document.querySelector('.appointment-block.dragging')) {
+        return;
+    }
+    
+    const horaBase = parseInt(slot.getAttribute('data-hora'));
+    const profesionalId = slot.getAttribute('data-profesional');
+    
+    // Obtener la posición del click relativa al slot
+    const slotRect = slot.getBoundingClientRect();
+    const clickY = e.clientY - slotRect.top;
+    const slotHeight = slotRect.height; // Normalmente 80px (1 hora)
+    
+    // Calcular la hora exacta basada en la posición Y del click
+    // Cada slot representa 1 hora (60 minutos) = slotHeight px
+    // Hora exacta = horaBase + (clickY / slotHeight) * 60 minutos
+    const minutosDesdeInicio = (clickY / slotHeight) * 60;
+    const minutosRedondeados = Math.round(minutosDesdeInicio / 15) * 15; // Redondear a cuartos de hora (0, 15, 30, 45)
+    
+    // Calcular hora y minutos
+    let horaFinal = horaBase;
+    let minutosFinal = minutosRedondeados;
+    
+    // Si los minutos exceden 60, ajustar la hora
+    if (minutosFinal >= 60) {
+        horaFinal += 1;
+        minutosFinal -= 60;
+    }
+    
+    // Verificar si el click está sobre una reserva existente
+    const reservasEnSlot = slot.querySelectorAll('.appointment-block');
+    let clickSobreReserva = false;
+    
+    reservasEnSlot.forEach(reserva => {
+        const reservaRect = reserva.getBoundingClientRect();
+        const reservaTop = reservaRect.top - slotRect.top;
+        const reservaBottom = reservaTop + reservaRect.height;
+        
+        // Verificar si el click está dentro del área de la reserva
+        if (clickY >= reservaTop && clickY <= reservaBottom) {
+            clickSobreReserva = true;
+        }
+    });
+    
+    // Si el click está sobre una reserva, no hacer nada
+    if (clickSobreReserva) {
+        return;
+    }
+    
+    // Formatear la hora para el modal (HH:MM)
+    const horaFormateada = `${horaFinal.toString().padStart(2, '0')}:${minutosFinal.toString().padStart(2, '0')}`;
+    
+    console.log('🖱️ Click detectado en slot:', { 
+        horaBase, 
+        clickY, 
+        slotHeight, 
+        minutosDesdeInicio, 
+        minutosRedondeados,
+        horaFinal,
+        minutosFinal,
+        horaFormateada,
+        profesionalId 
+    });
+    
+    // Abrir modal para crear reserva con cliente provisional
+    abrirModalReservaProvisional(horaFormateada, profesionalId);
+}
+
+// Función para abrir modal de reserva provisional
+function abrirModalReservaProvisional(hora, profesionalId) {
+    console.log('🔓 Intentando abrir modal de reserva provisional...', { hora, profesionalId });
+    
+    const modalElement = document.getElementById('modalNuevaReservaProvisional');
+    if (!modalElement) {
+        console.error('❌ No se encontró el modal modalNuevaReservaProvisional');
+        alert('Error: No se encontró el formulario de reserva. Por favor, recarga la página.');
+        return;
+    }
+    
+    // Verificar que Bootstrap esté disponible
+    if (typeof bootstrap === 'undefined') {
+        console.error('❌ Bootstrap no está disponible');
+        alert('Error: Bootstrap no está cargado. Por favor, recarga la página.');
+        return;
+    }
+    
+    // Obtener o crear instancia del modal
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+        modal = new bootstrap.Modal(modalElement);
+    }
+    
+    // Establecer valores por defecto
+    const fechaInput = document.getElementById('fechaProvisional');
+    const horaInput = document.getElementById('horaProvisional');
+    const profesionalSelect = document.getElementById('profesionalProvisional');
+    
+    // Fecha actual
+    if (fechaInput) {
+        fechaInput.value = fechaSeleccionada;
+        console.log('📅 Fecha establecida:', fechaSeleccionada);
+    } else {
+        console.warn('⚠️ No se encontró el input de fecha');
+    }
+    
+    // Hora seleccionada
+    if (horaInput) {
+        // La hora ya viene en formato "HH:MM" desde manejarClickSlotDelegado
+        // Si viene como número (compatibilidad con código anterior), formatear
+        let horaFormateada;
+        if (typeof hora === 'number') {
+            horaFormateada = `${hora.toString().padStart(2, '0')}:00`;
+        } else if (typeof hora === 'string' && hora.includes(':')) {
+            // Ya está en formato HH:MM
+            horaFormateada = hora;
+        } else {
+            // Intentar parsear como número
+            const horaNum = parseInt(hora);
+            horaFormateada = `${horaNum.toString().padStart(2, '0')}:00`;
+        }
+        horaInput.value = horaFormateada;
+        console.log('⏰ Hora establecida:', horaFormateada);
+    } else {
+        console.warn('⚠️ No se encontró el input de hora');
+    }
+    
+    // Cargar servicios si no están cargados
+    cargarServiciosEnModal();
+    
+    // Asegurar que los profesionales estén cargados en el select PRIMERO
+    llenarDropdownProfesionalesProvisional();
+    
+    // Luego establecer el profesional seleccionado (después de llenar el dropdown)
+    setTimeout(() => {
+        if (profesionalSelect && profesionalId) {
+            profesionalSelect.value = profesionalId;
+            console.log('👤 Profesional establecido:', profesionalId);
+            
+            // Verificar que se estableció correctamente
+            if (profesionalSelect.value !== profesionalId) {
+                console.warn('⚠️ No se pudo establecer el profesional. Valor intentado:', profesionalId, 'Valor actual:', profesionalSelect.value);
+            }
+        } else {
+            console.warn('⚠️ No se encontró el select de profesional o no hay profesionalId');
+        }
+    }, 100);
+    
+    // Verificar si estamos dentro de un modal (el calendario completo)
+    // (modal eliminado)
+    const modalCalendarioInstance = modalCalendario ? bootstrap.Modal.getInstance(modalCalendario) : null;
+    
+    // Si el calendario está en un modal, cerrarlo primero
+    if (modalCalendarioInstance && modalCalendario.classList.contains('show')) {
+        console.log('🔄 Cerrando modal del calendario antes de abrir modal de reserva...');
+        
+        // Cerrar el modal del calendario
+        modalCalendarioInstance.hide();
+        
+        // Esperar a que se cierre completamente antes de abrir el nuevo modal
+        modalCalendario.addEventListener('hidden.bs.modal', function abrirModalReserva() {
+            // Remover el listener para evitar que se ejecute múltiples veces
+            modalCalendario.removeEventListener('hidden.bs.modal', abrirModalReserva);
+            
+            // Abrir el modal de reserva
+            try {
+                modal.show();
+                console.log('✅ Modal de reserva abierto exitosamente');
+            } catch (error) {
+                console.error('❌ Error al abrir el modal:', error);
+                alert('Error al abrir el formulario de reserva. Por favor, intenta nuevamente.');
+            }
+        }, { once: true });
+    } else {
+        // Si no hay modal del calendario abierto, abrir directamente
+        try {
+            modal.show();
+            console.log('✅ Modal abierto exitosamente');
+        } catch (error) {
+            console.error('❌ Error al abrir el modal:', error);
+            alert('Error al abrir el formulario de reserva. Por favor, intenta nuevamente.');
+        }
+    }
+}
+
+// Mostrar reservas en el calendario
+function mostrarReservasEnCalendario() {
+    console.log('=== MOSTRANDO RESERVAS EN CALENDARIO ===');
+    console.log('Total de reservas a mostrar:', reservas.length);
+
+    // Limpiar reservas existentes
+    document.querySelectorAll('.appointment-block').forEach(el => el.remove());
+
+    // Asegurar que los listeners estén agregados después de limpiar
+    agregarListenersSlots();
+
+    actualizarContadorReservas();
+
+    if (!reservas || reservas.length === 0) {
+        console.log('ℹ️ No hay reservas para mostrar en el calendario');
+        return;
+    }
+
+    const calendarGrid = document.getElementById('calendarGrid');
+    if (!calendarGrid) {
+        console.error('❌ No se encontró el calendario (calendarGrid)');
+        return;
+    }
+    if (document.querySelectorAll('.professional-slot').length === 0) {
+        console.error('❌ No hay slots de profesionales disponibles');
+        return;
+    }
+
+    const SLOT_H = obtenerAlturaSlot(); // px por hora (coincide con la grilla)
+    const PX_POR_MIN = SLOT_H / 60;
+
+    // 1) Normalizar reservas con minutos de inicio/fin
+    const items = [];
+    reservas.forEach(reserva => {
+        const ini = horaAMinutos(reserva.hora_inicio);
+        let fin = horaAMinutos(reserva.hora_fin);
+        if (!fin || fin <= ini) fin = ini + 30; // fallback: 30 min mínimo
+        items.push({ reserva, ini, fin, horaInicioNum: Math.floor(ini / 60) });
+    });
+
+    // 2) Agrupar por profesional para calcular solapamientos (lanes)
+    const porProfesional = {};
+    items.forEach(it => {
+        const pid = String(it.reserva.profesional_id);
+        (porProfesional[pid] = porProfesional[pid] || []).push(it);
+    });
+
+    // Para cada profesional, asignar columna (lane) a reservas que se solapan
+    Object.values(porProfesional).forEach(lista => {
+        lista.sort((a, b) => a.ini - b.ini || a.fin - b.fin);
+        // Algoritmo de "clusters": grupos de reservas que se solapan en cadena
+        let cluster = [];
+        let clusterFin = -1;
+        const cerrarCluster = () => {
+            if (cluster.length === 0) return;
+            // Asignar lane mínima disponible a cada item del cluster
+            const lanesFin = []; // fin de la última reserva en cada lane
+            cluster.forEach(it => {
+                let lane = 0;
+                while (lane < lanesFin.length && lanesFin[lane] > it.ini) lane++;
+                lanesFin[lane] = it.fin;
+                it.lane = lane;
+            });
+            const totalLanes = lanesFin.length;
+            cluster.forEach(it => { it.totalLanes = totalLanes; });
+            cluster = [];
+        };
+        lista.forEach(it => {
+            if (cluster.length > 0 && it.ini >= clusterFin) cerrarCluster();
+            cluster.push(it);
+            clusterFin = Math.max(clusterFin, it.fin);
+        });
+        cerrarCluster();
+    });
+
+    let exitosas = 0, fallidas = 0;
+    const formatHora = (h) => String(h || '').substring(0, 5);
+
+    items.forEach(it => {
+        try {
+            const { reserva, ini, fin } = it;
+            const slot = document.querySelector(
+                `[data-hora="${it.horaInicioNum}"][data-profesional="${reserva.profesional_id}"]`
+            );
+            if (!slot) { fallidas++; console.warn(`❌ Sin slot para reserva ${reserva.id} (hora ${it.horaInicioNum}, prof ${reserva.profesional_id})`); return; }
+
+            const duracionMin = fin - ini;
+            const block = document.createElement('div');
+            block.className = 'appointment-block';
+            block.setAttribute('data-status', reserva.estado || 'confirmed');
+            block.setAttribute('data-reserva-id', reserva.id);
+            block.setAttribute('data-duracion', duracionMin);
+            block.setAttribute('data-service', (reserva.servicio || '').toLowerCase());
+            block.setAttribute('data-suscripcion', reserva.tiene_suscripcion ? 'true' : 'false');
+            if (duracionMin > 120) block.setAttribute('data-duration', 'long');
+
+            // Posición vertical exacta: top = minutos dentro de la hora; alto = duración real
+            const minutosEnSlot = ini - (it.horaInicioNum * 60);
+            const topOffset = minutosEnSlot * PX_POR_MIN;
+            const alturaPx = Math.max(duracionMin * PX_POR_MIN, 16);
+            block.style.top = `${topOffset}px`;
+            block.style.height = `${alturaPx}px`;
+
+            // Posición horizontal: lanes para reservas solapadas
+            const totalLanes = it.totalLanes || 1;
+            const lane = it.lane || 0;
+            const gap = 3; // px entre lanes y bordes
+            const anchoPct = 100 / totalLanes;
+            block.style.left = `calc(${lane * anchoPct}% + ${gap}px)`;
+            block.style.right = 'auto';
+            block.style.width = `calc(${anchoPct}% - ${gap * 1.5}px)`;
+
+            const nombreCliente = reserva.cliente || 'Cliente';
+            const nombreServicio = reserva.servicio || 'Servicio';
+            if (alturaPx < 34) {
+                block.innerHTML = `<span class="appointment-cliente-name">${nombreCliente}</span>`;
+            } else {
+                block.innerHTML = `
+                    <span class="appointment-cliente-name">${nombreCliente}</span>
+                    <span class="appointment-time-only">${formatHora(reserva.hora_inicio)} - ${formatHora(reserva.hora_fin)}</span>`;
+            }
+            block.title = `${nombreCliente} · ${nombreServicio} (${formatHora(reserva.hora_inicio)}-${formatHora(reserva.hora_fin)}, ${duracionMin} min)`;
+
+            slot.appendChild(block);
+            agregarDragAndDrop(block, reserva);
+            exitosas++;
+        } catch (error) {
+            fallidas++;
+            console.error(`❌ Error procesando reserva ${it.reserva && it.reserva.id}:`, error);
+        }
+    });
+
+    console.log(`=== RESUMEN === ✅ ${exitosas}  ❌ ${fallidas}  📊 ${items.length}`);
+    actualizarContadorReservas();
+}
+
+// Función para agregar funcionalidad de drag and drop a una reserva
+function agregarDragAndDrop(appointmentBlock, reservaData) {
+    let isDragging = false;
+    let startY = 0;
+    let startTop = 0;
+    let startLeft = 0;
+    let originalTop = 0;
+    let currentSlot = null;
+    let originalSlot = null;
+    
+    appointmentBlock.addEventListener('mousedown', (e) => {
+        // Solo iniciar drag si no es un click en un elemento interactivo
+        if (e.target.closest('button, a, input, select')) {
+            return;
+        }
+        
+        // Prevenir que el click se propague al slot (evita que se abra el modal)
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Agregar clase dragging inmediatamente para feedback visual
+        appointmentBlock.classList.add('dragging');
+        
+        // Guardar posición inicial
+        const rect = appointmentBlock.getBoundingClientRect();
+        startY = e.clientY;
+        startTop = rect.top; // Posición absoluta en la ventana
+        startLeft = rect.left; // Posición absoluta en la ventana
+        originalSlot = appointmentBlock.parentElement;
+        originalTop = appointmentBlock.offsetTop; // Posición relativa al slot original
+        originalWidth = rect.width;
+        
+        // Cambiar a position fixed para estar fuera del contexto de apilamiento
+        // IMPORTANTE: Mantener la visibilidad y posición exacta
+        appointmentBlock.style.position = 'fixed';
+        appointmentBlock.style.left = `${rect.left}px`;
+        appointmentBlock.style.top = `${rect.top}px`;
+        appointmentBlock.style.width = `${rect.width}px`;
+        appointmentBlock.style.opacity = '0.95'; // Mantener visible
+        appointmentBlock.style.visibility = 'visible';
+        appointmentBlock.style.display = 'block';
+        
+        // Marcar que estamos arrastrando
+        isDragging = true;
+        
+        // Cambiar cursor del body para indicar que estamos arrastrando
+        document.body.style.cursor = 'grabbing';
+        document.body.style.userSelect = 'none';
+        
+        console.log('🖱️ Iniciando drag de reserva:', {
+            reservaId: appointmentBlock.getAttribute('data-reserva-id'),
+            posicionInicial: { top: rect.top, left: rect.left }
+        });
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        // Prevenir que el movimiento del mouse active otros eventos
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Calcular nueva posición usando coordenadas de ventana
+        const deltaY = e.clientY - startY;
+        const newTop = startTop + deltaY;
+        appointmentBlock.style.top = `${newTop}px`;
+        
+        // Asegurar que siempre esté visible durante el drag
+        appointmentBlock.style.opacity = '0.95';
+        appointmentBlock.style.visibility = 'visible';
+        appointmentBlock.style.display = 'block';
+        
+        // Encontrar el slot sobre el que estamos
+        const calendarGrid = document.getElementById('calendarGrid');
+        if (!calendarGrid) return;
+        
+        const slots = calendarGrid.querySelectorAll('.professional-slot');
+        let hoveredSlot = null;
+        
+        slots.forEach(slot => {
+            const rect = slot.getBoundingClientRect();
+            if (e.clientY >= rect.top && e.clientY <= rect.bottom &&
+                e.clientX >= rect.left && e.clientX <= rect.right) {
+                hoveredSlot = slot;
+            }
+        });
+        
+        // Resaltar el slot sobre el que estamos
+        slots.forEach(slot => {
+            slot.style.backgroundColor = '';
+        });
+        if (hoveredSlot) {
+            hoveredSlot.style.backgroundColor = 'rgba(72, 187, 120, 0.1)';
+            currentSlot = hoveredSlot;
+        }
+    });
+    
+    document.addEventListener('mouseup', async (e) => {
+        if (!isDragging) return;
+        
+        isDragging = false;
+        appointmentBlock.classList.remove('dragging');
+        
+        // Restaurar cursor del body
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        
+        // Prevenir que el click se propague (evita que se abra el modal)
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Limpiar resaltado
+        const slots = document.querySelectorAll('.professional-slot');
+        slots.forEach(slot => {
+            slot.style.backgroundColor = '';
+        });
+        
+        if (!currentSlot) {
+            // Si no hay slot válido, restaurar posición original
+            appointmentBlock.style.position = 'absolute';
+            appointmentBlock.style.width = '';
+            appointmentBlock.style.left = '';
+            appointmentBlock.style.top = `${originalTop}px`;
+            if (originalSlot && originalSlot !== appointmentBlock.parentElement) {
+                originalSlot.appendChild(appointmentBlock);
+            }
+            return;
+        }
+        
+        // Calcular nueva hora basada en la posición del MOUSE (más preciso)
+        const slotRect = currentSlot.getBoundingClientRect();
+        // Usar la posición del mouse directamente en lugar de getBoundingClientRect
+        // porque el appointment está en position: fixed
+        const relativeY = e.clientY - slotRect.top;
+        const slotHeight = slotRect.height; // 80px normalmente
+        
+        // Calcular minutos desde el inicio del slot
+        const minutosDesdeInicio = (relativeY / slotHeight) * 60;
+        const minutosRedondeados = Math.round(minutosDesdeInicio / 15) * 15; // Redondear a cuartos de hora
+        
+        // Obtener hora base del slot
+        const horaBase = parseInt(currentSlot.getAttribute('data-hora'));
+        const nuevoProfesionalId = currentSlot.getAttribute('data-profesional');
+        
+        // Calcular hora y minutos finales
+        let horaFinal = horaBase;
+        let minutosFinal = minutosRedondeados;
+        
+        // Asegurar que minutosFinal esté en el rango válido [0, 59]
+        while (minutosFinal < 0) {
+            horaFinal -= 1;
+            minutosFinal += 60;
+        }
+        while (minutosFinal >= 60) {
+            horaFinal += 1;
+            minutosFinal -= 60;
+        }
+        
+        // Validar que horaFinal esté en rango válido [0, 23]
+        if (horaFinal < 0) {
+            horaFinal = 0;
+            minutosFinal = 0;
+        } else if (horaFinal >= 24) {
+            horaFinal = 23;
+            minutosFinal = 59;
+        }
+        
+        // Asegurar que minutosFinal sea un entero válido
+        minutosFinal = Math.max(0, Math.min(59, Math.round(minutosFinal)));
+        horaFinal = Math.max(0, Math.min(23, Math.round(horaFinal)));
+        
+        // Formatear nueva hora (asegurar formato correcto)
+        const nuevaHoraInicio = `${String(horaFinal).padStart(2, '0')}:${String(minutosFinal).padStart(2, '0')}:00`;
+        
+        console.log('🕐 Calculando nueva hora:', {
+            horaBase,
+            minutosDesdeInicio,
+            minutosRedondeados,
+            horaFinal,
+            minutosFinal,
+            nuevaHoraInicio
+        });
+        
+        // Validar formato antes de enviar
+        if (!/^\d{2}:\d{2}:\d{2}$/.test(nuevaHoraInicio)) {
+            console.error('❌ Formato de hora inválido generado:', nuevaHoraInicio);
+            alert('Error: No se pudo calcular la nueva hora. Por favor, intente de nuevo.');
+            // Restaurar posición original
+            appointmentBlock.style.position = 'absolute';
+            appointmentBlock.style.width = '';
+            appointmentBlock.style.left = '';
+            appointmentBlock.style.top = `${originalTop}px`;
+            if (originalSlot && originalSlot !== appointmentBlock.parentElement) {
+                originalSlot.appendChild(appointmentBlock);
+            }
+            return;
+        }
+        
+        // Actualizar en el servidor
+        try {
+            const reservaId = appointmentBlock.getAttribute('data-reserva-id');
+            console.log('📤 Enviando actualización de reserva:', {
+                reserva_id: reservaId,
+                hora_inicio: nuevaHoraInicio,
+                profesional_id: nuevoProfesionalId !== reservaData.profesional_id ? nuevoProfesionalId : null
+            });
+            
+            const response = await fetch(`/negocios/{{ negocio.id }}/api/reserva/${reservaId}/actualizar-hora/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    hora_inicio: nuevaHoraInicio,
+                    profesional_id: nuevoProfesionalId !== reservaData.profesional_id ? nuevoProfesionalId : null
+                }),
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('✅ Reserva actualizada:', data);
+                
+                // Restaurar position a absolute ANTES de mover al slot
+                appointmentBlock.style.position = 'absolute';
+                appointmentBlock.style.width = '';
+                appointmentBlock.style.left = '';
+                
+                // Mover el bloque al nuevo slot si cambió de profesional o de slot
+                if (nuevoProfesionalId !== reservaData.profesional_id || currentSlot !== originalSlot) {
+                    currentSlot.appendChild(appointmentBlock);
+                }
+                
+                // Recalcular posición top basada en minutos (relativa al slot)
+                const topOffset = (minutosFinal / 60) * slotHeight;
+                appointmentBlock.style.top = `${topOffset}px`;
+                
+                console.log('✅ Reserva reposicionada:', {
+                    slot: currentSlot.getAttribute('data-hora'),
+                    topOffset,
+                    nuevaHoraInicio
+                });
+                
+                // Recargar reservas para actualizar visualización
+                await cargarReservas();
+            } else {
+                const error = await response.json();
+                console.error('❌ Error actualizando reserva:', error);
+                alert('Error al actualizar la reserva: ' + (error.error || 'Error desconocido'));
+                
+                // Restaurar posición original
+                appointmentBlock.style.position = 'absolute';
+                appointmentBlock.style.width = '';
+                appointmentBlock.style.left = '';
+                appointmentBlock.style.top = `${originalTop}px`;
+                if (originalSlot && originalSlot !== appointmentBlock.parentElement) {
+                    originalSlot.appendChild(appointmentBlock);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error de red al actualizar reserva:', error);
+            alert('Error de conexión al actualizar la reserva');
+            
+            // Restaurar posición original
+            appointmentBlock.style.position = 'absolute';
+            appointmentBlock.style.width = '';
+            appointmentBlock.style.left = '';
+            appointmentBlock.style.top = `${originalTop}px`;
+            if (originalSlot && originalSlot !== appointmentBlock.parentElement) {
+                originalSlot.appendChild(appointmentBlock);
+            }
+        }
+    });
+}
+
+// Navegación del calendario
+function irHoy() {
+    const hoy = new Date();
+    fechaSeleccionada = hoy.toISOString().split('T')[0];
+    actualizarFechaEnHeader();
+    cargarReservas();
+}
+
+function anteriorDia() {
+    const fecha = new Date(fechaSeleccionada);
+    fecha.setDate(fecha.getDate() - 1);
+    fechaSeleccionada = fecha.toISOString().split('T')[0];
+    actualizarFechaEnHeader();
+    cargarReservas();
+}
+
+function siguienteDia() {
+    const fecha = new Date(fechaSeleccionada);
+    fecha.setDate(fecha.getDate() + 1);
+    fechaSeleccionada = fecha.toISOString().split('T')[0];
+    actualizarFechaEnHeader();
+    cargarReservas();
+}
+
+// Actualizar fecha en el header
+function actualizarFechaEnHeader() {
+    const fecha = new Date(fechaSeleccionada + 'T12:00:00'); // Evitar problemas de zona horaria
+    
+    // Actualizar el nuevo header con navegación
+    const fechaDia = document.getElementById('fechaDia');
+    const fechaMesAno = document.getElementById('fechaMesAno');
+    const fechaDiaSemana = document.getElementById('fechaDiaSemana');
+    
+    if (fechaDia) {
+        fechaDia.textContent = fecha.getDate();
+    }
+    if (fechaMesAno) {
+        fechaMesAno.textContent = fecha.toLocaleDateString('es-ES', {
+            month: 'long',
+            year: 'numeric'
+        });
+    }
+    if (fechaDiaSemana) {
+        fechaDiaSemana.textContent = fecha.toLocaleDateString('es-ES', {
+            weekday: 'long'
+        });
+    }
+    
+    // También actualizar el contador de reservas
+    actualizarContadorReservas();
+    
+    // Actualizar la fecha en el info-card
+    const fechaDisplay = document.getElementById('fechaDisplay');
+    if (fechaDisplay) {
+        fechaDisplay.textContent = fecha.toLocaleDateString('es-ES', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    }
+}
+
+// Actualizar contador de reservas del día
+function actualizarContadorReservas() {
+    const reservasCount = document.getElementById('reservasCount');
+    if (reservasCount && reservas) {
+        reservasCount.textContent = reservas.length;
+    }
+}
+
+// Funciones de utilidad
+function mostrarBusqueda() {
+    alert('Función de búsqueda en desarrollo');
+}
+
+function mostrarRocket() {
+    alert('Función de rocket en desarrollo');
+}
+
+function mostrarNotificaciones() {
+    alert('Mostrar notificaciones');
+}
+
+function mostrarCarpetas() {
+    alert('Mostrar carpetas');
+}
+
+function mostrarPerfil() {
+    alert('Mostrar perfil de usuario');
+}
+
+function abrirConfiguracion() {
+    alert('Configuración del calendario');
+}
+
+function refrescarCalendario() {
+    cargarProfesionales();
+}
+
+// Función para probar la API de reservas
+async function probarAPIReservas() {
+    try {
+        console.log('=== PROBANDO API DE RESERVAS ===');
+        
+        const url = `/negocios/{{ negocio.id }}/api/reservas/?fecha=${fechaSeleccionada}`;
+        console.log('URL de prueba:', url);
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        console.log('Status:', response.status);
+        console.log('Status Text:', response.statusText);
+        console.log('Headers:', response.headers);
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Respuesta exitosa:', data);
+            mostrarMensajeInfo('API funcionando correctamente');
+        } else {
+            const errorText = await response.text();
+            console.error('Error en respuesta:', errorText);
+            mostrarMensajeError(`Error ${response.status}: ${response.statusText}`);
+        }
+        
+    } catch (error) {
+        console.error('Error de conexión:', error);
+        mostrarMensajeError('Error de conexión a la API');
+    }
+}
+
+// Función para crear reservas de prueba
+function crearReservasPrueba() {
+    console.log('=== CREANDO RESERVAS DE PRUEBA ===');
+    
+    // Crear reservas de ejemplo para probar el calendario
+    // Usar horarios exactos que coincidan con los slots del calendario (00:00, 01:00, 02:00...)
+    const reservasPrueba = [
+        {
+            id: 1,
+            cliente: 'María López',
+            servicio: 'Corte de cabello',
+            hora_inicio: '09:00',
+            hora_fin: '10:00',
+            profesional_id: 1,
+            estado: 'confirmed',
+            notas: 'Cliente regular'
+        },
+        {
+            id: 2,
+            cliente: 'Carlos García',
+            servicio: 'Coloración',
+            hora_inicio: '10:00',
+            hora_fin: '12:00',
+            profesional_id: 2,
+            estado: 'confirmed',
+            notas: 'Primera vez'
+        },
+        {
+            id: 3,
+            cliente: 'Ana Martínez',
+            servicio: 'Peinado',
+            hora_inicio: '14:00',
+            hora_fin: '15:00',
+            profesional_id: 1,
+            estado: 'confirmed',
+            notas: 'Para boda'
+        },
+        {
+            id: 4,
+            cliente: 'Luis Rodríguez',
+            servicio: 'Tratamiento capilar',
+            hora_inicio: '16:00',
+            hora_fin: '17:00',
+            profesional_id: 3,
+            estado: 'confirmed',
+            notas: 'Tratamiento mensual'
+        },
+        {
+            id: 5,
+            cliente: 'Sofia Pérez',
+            servicio: 'Masaje',
+            hora_inicio: '11:00',
+            hora_fin: '12:00',
+            profesional_id: 4,
+            estado: 'confirmed',
+            notas: 'Relajante'
+        },
+        {
+            id: 6,
+            cliente: 'Roberto Silva',
+            servicio: 'Corte y barba',
+            hora_inicio: '13:00',
+            hora_fin: '14:00',
+            profesional_id: 1,
+            estado: 'confirmed',
+            notas: 'Cliente nuevo'
+        }
+    ];
+    
+    console.log('📋 Reservas de prueba creadas:', reservasPrueba);
+    
+    // Asignar a la variable global
+    reservas = reservasPrueba;
+    
+    // Verificar que el calendario esté generado antes de mostrar reservas
+    const calendarGrid = document.getElementById('calendarGrid');
+    if (!calendarGrid) {
+        console.error('❌ Calendario no generado, generando primero...');
+        generarCalendario();
+        // Esperar un poco y luego mostrar las reservas
+        setTimeout(() => {
+            mostrarReservasEnCalendario();
+        }, 200);
+    } else {
+        console.log('✅ Calendario ya generado, mostrando reservas...');
+        mostrarReservasEnCalendario();
+    }
+    
+    mostrarMensajeExito('Reservas de prueba creadas y mostradas en el calendario');
+}
+
+// Función para forzar la visualización de reservas
+function forzarMostrarReservas() {
+    console.log('=== FORZANDO MOSTRAR RESERVAS ===');
+    
+    // Verificar estado actual
+    console.log('📊 Estado actual:');
+    console.log('   - Profesionales:', profesionales.length);
+    console.log('   - Reservas:', reservas.length);
+    console.log('   - Calendario generado:', !!document.getElementById('calendarGrid'));
+    console.log('   - Slots disponibles:', document.querySelectorAll('.professional-slot').length);
+    
+    // Si no hay reservas, crear algunas de prueba
+    if (reservas.length === 0) {
+        console.log('⚠️ No hay reservas, creando algunas de prueba...');
+        crearReservasPrueba();
+        return;
+    }
+    
+    // Si no hay calendario, generarlo
+    if (!document.getElementById('calendarGrid')) {
+        console.log('⚠️ No hay calendario, generándolo...');
+        generarCalendario();
+        setTimeout(() => {
+            mostrarReservasEnCalendario();
+        }, 200);
+        return;
+    }
+    
+    // Si no hay slots, regenerar calendario
+    const slots = document.querySelectorAll('.professional-slot');
+    if (slots.length === 0) {
+        console.log('⚠️ No hay slots, regenerando calendario...');
+        generarCalendario();
+        setTimeout(() => {
+            mostrarReservasEnCalendario();
+        }, 200);
+        return;
+    }
+    
+    // Forzar mostrar reservas
+    console.log('✅ Todo listo, mostrando reservas...');
+    mostrarReservasEnCalendario();
+    
+    // Verificar resultado final
+    setTimeout(() => {
+        const reservasFinales = document.querySelectorAll('.appointment-block');
+        console.log(`🎯 Reservas visibles en el calendario: ${reservasFinales.length}`);
+        
+        if (reservasFinales.length > 0) {
+            mostrarMensajeExito(`Se muestran ${reservasFinales.length} reservas en el calendario`);
+        } else {
+            mostrarMensajeAdvertencia('No se pudieron mostrar las reservas. Revisa la consola para más detalles.');
+        }
+    }, 500);
+}
+
+function nuevaReserva() {
+    // Abrir modal para crear nueva reserva
+    const modal = document.getElementById('modalNuevaReserva');
+    if (modal) {
+        // Establecer fecha por defecto
+        const fechaInput = modal.querySelector('input[name="fecha"]');
+        if (fechaInput) {
+            fechaInput.value = fechaSeleccionada;
+        }
+        
+        const modalInstance = new bootstrap.Modal(modal);
+        modalInstance.show();
+    }
+}
+
+// (eliminado: modal navigación y mejora scroll — calendario ahora directo en página)
+
+// Función para crear una nueva reserva
+async function crearNuevaReserva(formData) {
+    try {
+        const response = await fetch(`/negocios/{{ negocio.id }}/api/reservas/crear/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(formData),
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Reserva creada exitosamente:', data);
+            
+            // Recargar reservas y actualizar calendario
+            await cargarReservas();
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalNuevaReserva'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Mostrar mensaje de éxito
+            mostrarMensajeExito('Reserva creada exitosamente');
+        } else {
+            const errorData = await response.json();
+            console.error('Error creando reserva:', errorData);
+            alert(`Error: ${errorData.error || 'No se pudo crear la reserva'}`);
+        }
+    } catch (error) {
+        console.error('Error en la petición:', error);
+        alert('Error de conexión al crear la reserva');
+    }
+}
+
+// Función para obtener el token CSRF (mejorada)
+function getCookie(name) {
+    // Primero intentar obtener del input hidden (más confiable)
+    const inputToken = document.getElementById('csrf_token_js');
+    if (inputToken && inputToken.value) {
+        return inputToken.value;
+    }
+    
+    // Si no está en el input, buscar en el formulario
+    const formToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (formToken && formToken.value) {
+        return formToken.value;
+    }
+    
+    // Finalmente, intentar obtener de las cookies
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Función para crear reserva con cliente provisional
+async function crearReservaProvisional(formData) {
+    try {
+        // Preparar datos para cliente provisional
+        const horaInicio = formData.get('hora_inicio');
+        const reservaData = {
+            es_cliente_provisional: true,
+            nombre_cliente: formData.get('nombre_cliente'),
+            telefono_cliente: formData.get('telefono_cliente'),
+            servicio: formData.get('servicio'),
+            fecha: formData.get('fecha'),
+            hora_inicio: horaInicio.includes(':') && horaInicio.split(':').length === 2 ? horaInicio + ':00' : horaInicio, // Agregar segundos solo si no los tiene
+            profesional_id: formData.get('profesional'),
+            notas: formData.get('notas') || ''
+        };
+        
+        console.log('📤 Enviando datos de reserva:', reservaData);
+        
+        const response = await fetch(`/negocios/{{ negocio.id }}/api/reservas/crear/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(reservaData),
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Reserva provisional creada exitosamente:', data);
+            
+            // Recargar reservas y actualizar calendario
+            await cargarReservas();
+            
+            // Regenerar calendario para mostrar la nueva reserva
+            if (profesionales && profesionales.length > 0) {
+                generarCalendario();
+            }
+            
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalNuevaReservaProvisional'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Limpiar formulario
+            document.getElementById('formNuevaReservaProvisional').reset();
+            
+            // Mostrar mensaje de éxito
+            mostrarMensajeExito('Reserva creada exitosamente');
+        } else {
+            const errorData = await response.json();
+            console.error('Error creando reserva provisional:', errorData);
+            alert(`Error: ${errorData.error || 'No se pudo crear la reserva'}`);
+        }
+    } catch (error) {
+        console.error('Error en la petición:', error);
+        alert('Error de conexión al crear la reserva');
+    }
+}
+
+// Función para cargar servicios en el modal
+async function cargarServiciosEnModal() {
+    const selectServicio = document.getElementById('servicioProvisional');
+    if (!selectServicio || selectServicio.options.length > 1) {
+        // Ya está cargado
+        return;
+    }
+    
+    try {
+        // Aquí deberías tener una API para obtener servicios del negocio
+        // Por ahora, usaremos servicios básicos
+        const servicios = [
+            { nombre: 'Corte de cabello', id: 'corte' },
+            { nombre: 'Coloración', id: 'color' },
+            { nombre: 'Peinado', id: 'peinado' },
+            { nombre: 'Tratamiento', id: 'tratamiento' },
+            { nombre: 'Masaje', id: 'masaje' },
+            { nombre: 'Manicure', id: 'manicure' },
+            { nombre: 'Pedicure', id: 'pedicure' }
+        ];
+        
+        servicios.forEach(servicio => {
+            const option = document.createElement('option');
+            option.value = servicio.id || servicio.nombre;
+            option.textContent = servicio.nombre;
+            selectServicio.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error cargando servicios:', error);
+    }
+}
+
+// Función para mostrar mensaje de éxito
+function mostrarMensajeExito(mensaje) {
+    mostrarMensaje(mensaje, 'success');
+}
+
+// Función para mostrar mensaje de error
+function mostrarMensajeError(mensaje) {
+    mostrarMensaje(mensaje, 'error');
+}
+
+// Función para mostrar mensaje de advertencia
+function mostrarMensajeAdvertencia(mensaje) {
+    mostrarMensaje(mensaje, 'warning');
+}
+
+// Función para mostrar mensaje de información
+function mostrarMensajeInfo(mensaje) {
+    mostrarMensaje(mensaje, 'info');
+}
+
+// Función genérica para mostrar mensajes
+function mostrarMensaje(mensaje, tipo = 'info') {
+    // Crear elemento de mensaje
+    const mensajeElement = document.createElement('div');
+    mensajeElement.className = `mensaje mensaje-${tipo}`;
+    
+    const iconos = {
+        'success': 'bi-check-circle',
+        'error': 'bi-exclamation-triangle',
+        'warning': 'bi-exclamation-circle',
+        'info': 'bi-info-circle'
+    };
+    
+    const colores = {
+        'success': '#10b981',
+        'error': '#ef4444',
+        'warning': '#f59e0b',
+        'info': '#1E5BC6'
+    };
+    
+    mensajeElement.innerHTML = `
+        <i class="bi ${iconos[tipo]}"></i>
+        <span>${mensaje}</span>
+    `;
+    
+    mensajeElement.style.backgroundColor = colores[tipo];
+    
+    // Agregar al DOM
+    document.body.appendChild(mensajeElement);
+    
+    // Mostrar con animación
+    setTimeout(() => {
+        mensajeElement.classList.add('mostrar');
+    }, 100);
+    
+    // Ocultar después de 5 segundos
+    setTimeout(() => {
+        mensajeElement.classList.remove('mostrar');
+        setTimeout(() => {
+            if (mensajeElement.parentNode) {
+                mensajeElement.parentNode.removeChild(mensajeElement);
+            }
+        }, 300);
+    }, 5000);
+}
+
+// Función para mostrar error del servidor
+function mostrarErrorServidor() {
+    mostrarMensajeError('Error del servidor. Por favor, intente más tarde o contacte al administrador.');
+}
+
+// Función para mostrar error de conexión
+function mostrarErrorConexion() {
+    mostrarMensajeError('Error de conexión. Verifique su conexión a internet e intente nuevamente.');
+}
+
+// Función para cerrar el modal de detalles
+function cerrarModalDetalles() {
+    const modalElement = document.getElementById('modalDetallesReserva');
+    if (modalElement) {
+        modalElement.style.display = 'none';
+        modalElement.classList.remove('show');
+        modalElement.setAttribute('aria-hidden', 'true');
+    }
+    
+    // Remover backdrop
+    const backdrop = document.getElementById('backdropDetallesReserva');
+    if (backdrop) {
+        backdrop.remove();
+    }
+    
+    // Remover clase del body solo si no hay otros modales abiertos
+    const otrosModales = document.querySelectorAll('.modal.show');
+    if (otrosModales.length === 0) {
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }
+    
+    console.log('Modal de detalles cerrado');
+}
+
+// Cerrar modal con ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('modalDetallesReserva');
+        if (modal && modal.classList.contains('show')) {
+            cerrarModalDetalles();
+        }
+    }
+});
+
+function mostrarDetallesReserva(reserva) {
+    console.log('📋 Abriendo modal para reserva:', reserva);
+    
+    try {
+        const modalElement = document.getElementById('modalDetallesReserva');
+        const modalBody = document.getElementById('modalDetallesBody');
+        
+        if (!modalElement) {
+            console.error('❌ Modal no encontrado en el DOM');
+            alert('Error: No se pudo abrir el modal de detalles');
+            return;
+        }
+        
+        if (!modalBody) {
+            console.error('❌ Modal body no encontrado');
+            alert('Error: No se pudo cargar el contenido del modal');
+            return;
+        }
+        
+        // Formatear hora
+        const formatHora = (hora) => hora ? hora.substring(0, 5) : '--:--';
+        
+        // Determinar el badge del estado con los nuevos colores
+        let estadoBadge = '';
+        let estadoTexto = reserva.estado || 'confirmado';
+        switch(estadoTexto) {
+            case 'confirmado':
+            case 'confirmada':
+                estadoBadge = '<span class="badge" style="background: linear-gradient(135deg, #48bb78, #38a169);">Confirmada</span>';
+                break;
+            case 'pendiente':
+                estadoBadge = '<span class="badge" style="background: linear-gradient(135deg, #ecc94b, #d69e2e); color: #1a202c;">Pendiente</span>';
+                break;
+            case 'completado':
+            case 'completada':
+                estadoBadge = '<span class="badge" style="background: linear-gradient(135deg, #4a5568, #2d3748);">Atendida</span>';
+                break;
+            case 'cancelado':
+            case 'cancelada':
+                estadoBadge = '<span class="badge bg-danger">Cancelada</span>';
+                break;
+            case 'inasistencia':
+                estadoBadge = '<span class="badge" style="background: linear-gradient(135deg, #f687b3, #ed64a6);">Inasistencia</span>';
+                break;
+            default:
+                estadoBadge = '<span class="badge" style="background: linear-gradient(135deg, #48bb78, #38a169);">Confirmada</span>';
+        }
+        
+        // Badge de suscripción
+        const suscripcionBadge = reserva.tiene_suscripcion 
+            ? '<span class="badge ms-2" style="background: linear-gradient(135deg, #3182ce, #2b6cb0); border: 2px solid #ffd700;"><i class="bi bi-star-fill me-1" style="color: #ffd700;"></i>Suscriptor</span>'
+            : '';
+        
+        // Verificar si se pueden mostrar acciones
+        const puedeAccionar = ['confirmado', 'confirmada', 'pendiente', ''].includes(estadoTexto);
+        
+        // Construir HTML del modal
+        modalBody.innerHTML = `
+            <div class="text-center mb-4">
+                <div class="rounded-circle ${reserva.tiene_suscripcion ? 'bg-primary' : 'bg-secondary'} text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 70px; height: 70px; font-size: 1.8rem; ${reserva.tiene_suscripcion ? 'border: 3px solid #ffd700; box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);' : ''}">
+                    ${(reserva.cliente || 'C').charAt(0).toUpperCase()}
+                </div>
+                <h4 class="mb-1">${reserva.cliente || 'Cliente'}</h4>
+                <p class="text-muted mb-2">${reserva.servicio || 'Servicio'}</p>
+                <div>${estadoBadge}${suscripcionBadge}</div>
+            </div>
+            
+            <div class="row g-3 mb-4">
+                <div class="col-6">
+                    <div class="bg-light rounded-3 p-3 text-center">
+                        <i class="bi bi-clock text-primary fs-4 d-block mb-1"></i>
+                        <small class="text-muted d-block">Hora</small>
+                        <strong>${formatHora(reserva.hora_inicio)} - ${formatHora(reserva.hora_fin)}</strong>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="bg-light rounded-3 p-3 text-center">
+                        <i class="bi bi-calendar text-primary fs-4 d-block mb-1"></i>
+                        <small class="text-muted d-block">Reserva #</small>
+                        <strong>${reserva.id}</strong>
+                    </div>
+                </div>
+            </div>
+            
+            ${reserva.notas ? `
+                <div class="alert alert-secondary mb-4">
+                    <i class="bi bi-chat-dots me-2"></i>
+                    <strong>Notas:</strong> ${reserva.notas}
+                </div>
+            ` : ''}
+            
+            ${reserva.imagen_referencia ? `
+                <div class="mb-4">
+                    <h6><i class="bi bi-image me-1"></i>Imagen de Referencia</h6>
+                    <img src="${reserva.imagen_referencia}" class="img-fluid rounded" style="max-height: 200px; cursor: pointer;" onclick="window.open('${reserva.imagen_referencia}', '_blank')">
+                </div>
+            ` : ''}
+            
+            ${puedeAccionar ? `
+                <hr>
+                <h6 class="text-center mb-3"><i class="bi bi-check2-square me-1"></i>¿Cómo terminó la cita?</h6>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <button class="btn btn-success w-100 py-3" onclick="marcarComoCompletada(${reserva.id})">
+                            <i class="bi bi-check-circle fs-3 d-block mb-1"></i>
+                            <span class="fw-bold">Cita Exitosa</span>
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button class="btn btn-danger w-100 py-3" onclick="marcarComoInasistencia(${reserva.id})">
+                            <i class="bi bi-x-circle fs-3 d-block mb-1"></i>
+                            <span class="fw-bold">Inasistencia</span>
+                        </button>
+                    </div>
+                </div>
+            ` : `
+                <div class="alert alert-info text-center mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Esta reserva ya fue procesada.
+                </div>
+            `}
+        `;
+        
+        // Cerrar solo el backdrop específico del modal de detalles (no todos los backdrops)
+        const backdropDetalles = document.getElementById('backdropDetallesReserva');
+        if (backdropDetalles) {
+            backdropDetalles.remove();
+        }
+        
+        // Cerrar cualquier instancia previa del modal de detalles
+        const existingModal = bootstrap.Modal.getInstance(modalElement);
+        if (existingModal) {
+            existingModal.dispose();
+        }
+        
+        // Remover clases que puedan bloquear el body
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        
+        // Primero crear el backdrop (z-index bajo)
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.style.cssText = 'z-index: 10000 !important; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);';
+        backdrop.id = 'backdropDetallesReserva';
+        backdrop.onclick = function() {
+            cerrarModalDetalles();
+        };
+        document.body.appendChild(backdrop);
+        
+        // Luego mostrar el modal (z-index más alto)
+        modalElement.style.cssText = 'display: block !important; z-index: 10001 !important; position: fixed !important; top: 0; left: 0; width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto;';
+        modalElement.classList.add('show');
+        modalElement.setAttribute('aria-hidden', 'false');
+        
+        // Asegurar que el dialog tenga z-index correcto
+        const dialogElement = modalElement.querySelector('.modal-dialog');
+        if (dialogElement) {
+            dialogElement.style.cssText = 'z-index: 10002 !important; position: relative; margin: 1.75rem auto;';
+        }
+        
+        // Asegurar que el content tenga z-index correcto
+        const contentElement = modalElement.querySelector('.modal-content');
+        if (contentElement) {
+            contentElement.style.cssText = 'z-index: 10003 !important; position: relative;';
+        }
+        
+        // Añadir clase al body
+        document.body.classList.add('modal-open');
+        
+        console.log('✅ Modal mostrado correctamente (modo manual)');
+        
+    } catch (error) {
+        console.error('❌ Error al mostrar modal:', error);
+        alert('Error al abrir los detalles de la reserva: ' + error.message);
+    }
+}
+
+// Función para marcar reserva como completada
+// ========== SISTEMA DE CONFIRMACIÓN PERSONALIZADO ==========
+let accionPendiente = null;
+let reservaIdPendiente = null;
+
+function mostrarConfirmacion(tipo, reservaId) {
+    reservaIdPendiente = reservaId;
+    accionPendiente = tipo;
+    
+    const modal = document.getElementById('modalConfirmacion');
+    const icono = document.getElementById('iconoConfirmacion');
+    const titulo = document.getElementById('tituloConfirmacion');
+    const mensaje = document.getElementById('mensajeConfirmacion');
+    const btnConfirmar = document.getElementById('btnConfirmarAccion');
+    
+    if (tipo === 'completado') {
+        icono.className = 'modal-confirmacion-icon success';
+        icono.innerHTML = '<i class="bi bi-check-circle"></i>';
+        titulo.textContent = '¿Cita exitosa?';
+        mensaje.textContent = 'Confirma que el servicio se realizó correctamente.';
+        btnConfirmar.className = 'btn btn-success px-4';
+        btnConfirmar.innerHTML = '<i class="bi bi-check-lg me-1"></i>Sí, fue exitosa';
+    } else if (tipo === 'inasistencia') {
+        icono.className = 'modal-confirmacion-icon warning';
+        icono.innerHTML = '<i class="bi bi-person-x"></i>';
+        titulo.textContent = '¿Cliente no asistió?';
+        mensaje.textContent = 'Confirma que el cliente no se presentó a la cita.';
+        btnConfirmar.className = 'btn btn-danger px-4';
+        btnConfirmar.innerHTML = '<i class="bi bi-x-lg me-1"></i>Sí, no asistió';
+    }
+    
+    // Crear backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop fade show';
+    backdrop.style.cssText = 'z-index: 10999 !important;';
+    backdrop.id = 'backdropConfirmacion';
+    backdrop.onclick = cerrarModalConfirmacion;
+    document.body.appendChild(backdrop);
+    
+    // Mostrar modal
+    modal.style.display = 'block';
+    modal.classList.add('show');
+    document.body.classList.add('modal-open');
+}
+
+function cerrarModalConfirmacion() {
+    const modal = document.getElementById('modalConfirmacion');
+    modal.style.display = 'none';
+    modal.classList.remove('show');
+    
+    const backdrop = document.getElementById('backdropConfirmacion');
+    if (backdrop) backdrop.remove();
+    
+    // Solo quitar modal-open si no hay otros modales abiertos
+    const otrosModales = document.querySelectorAll('.modal.show');
+    if (otrosModales.length === 0) {
+        document.body.classList.remove('modal-open');
+    }
+    
+    accionPendiente = null;
+    reservaIdPendiente = null;
+}
+
+async function ejecutarAccionConfirmada() {
+    if (!accionPendiente || !reservaIdPendiente) {
+        console.log('⚠️ No hay acción pendiente');
+        return;
+    }
+    
+    // Guardar valores ANTES de cerrar el modal (que los borra)
+    const accion = accionPendiente;
+    const reservaId = reservaIdPendiente;
+    
+    console.log(`🎯 Ejecutando acción: ${accion} para reserva ${reservaId}`);
+    
+    // Cerrar el modal de confirmación
+    cerrarModalConfirmacion();
+    
+    // Ejecutar la acción con los valores guardados
+    if (accion === 'completado') {
+        await ejecutarMarcarCompletada(reservaId);
+    } else if (accion === 'inasistencia') {
+        await ejecutarMarcarInasistencia(reservaId);
+    }
+}
+
+// Función pública para iniciar confirmación de cita exitosa
+function marcarComoCompletada(reservaId) {
+    mostrarConfirmacion('completado', reservaId);
+}
+
+// Función pública para iniciar confirmación de inasistencia
+function marcarComoInasistencia(reservaId) {
+    mostrarConfirmacion('inasistencia', reservaId);
+}
+
+// Función que ejecuta el marcado como completada
+async function ejecutarMarcarCompletada(reservaId) {
+    try {
+        const response = await fetch(`/negocios/{{ negocio.id }}/api/reserva/${reservaId}/estado/`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                estado: 'completado',
+                notas: 'Servicio completado satisfactoriamente'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Cerrar modal de detalles
+            cerrarModalDetalles();
+            
+            // Mostrar mensaje de éxito
+            mostrarToast('✅ ¡Cita exitosa! La reserva ahora aparece en gris oscuro.', 'success');
+            
+            // Recargar reservas para actualizar colores
+            console.log('🔄 Recargando calendario para actualizar colores...');
+            await cargarReservas();
+            console.log('✅ Calendario actualizado');
+        } else {
+            mostrarToast('❌ ' + (data.error || 'Error al actualizar'), 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        mostrarToast('❌ Error de conexión', 'error');
+    }
+}
+
+// Función que ejecuta el marcado como inasistencia
+async function ejecutarMarcarInasistencia(reservaId) {
+    try {
+        const response = await fetch(`/negocios/{{ negocio.id }}/api/reserva/${reservaId}/estado/`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                estado: 'inasistencia',
+                notas: 'Cliente no asistió a la cita'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            // Cerrar modal de detalles
+            cerrarModalDetalles();
+            
+            // Mostrar mensaje
+            mostrarToast('⚠️ Inasistencia registrada. La reserva ahora aparece en rosado.', 'warning');
+            
+            // Recargar reservas para actualizar colores
+            console.log('🔄 Recargando calendario para actualizar colores...');
+            await cargarReservas();
+            console.log('✅ Calendario actualizado');
+        } else {
+            mostrarToast('❌ ' + (data.error || 'Error al actualizar'), 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        mostrarToast('❌ Error de conexión', 'error');
+    }
+}
+
+// Función para obtener el token CSRF (mejorada)
+function getCookie(name) {
+    // Primero intentar obtener del input hidden (más confiable)
+    const inputToken = document.getElementById('csrf_token_js');
+    if (inputToken && inputToken.value) {
+        return inputToken.value;
+    }
+    
+    // Si no está en el input, buscar en el formulario
+    const formToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (formToken && formToken.value) {
+        return formToken.value;
+    }
+    
+    // Finalmente, intentar obtener de las cookies
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Función para mostrar toast de notificación
+function mostrarToast(mensaje, tipo = 'info') {
+    // Crear el toast dinámicamente
+    const toastHtml = `
+        <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;">
+            <div class="toast align-items-center text-white bg-${tipo === 'success' ? 'success' : tipo === 'error' ? 'danger' : 'warning'}" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body fs-6">
+                        ${mensaje}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remover toasts anteriores
+    document.querySelectorAll('.toast-container').forEach(el => el.remove());
+    
+    // Agregar nuevo toast
+    document.body.insertAdjacentHTML('beforeend', toastHtml);
+    
+    // Mostrar el toast
+    const toastEl = document.querySelector('.toast');
+    const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+    toast.show();
+    
+    // Limpiar después de ocultar
+    toastEl.addEventListener('hidden.bs.toast', () => {
+        toastEl.closest('.toast-container').remove();
+    });
+}
+
+function editarReserva(reservaId) {
+    alert('Función de edición en desarrollo');
+}
+
+function confirmarReserva(reservaId) {
+    alert('Función de confirmación en desarrollo');
+}
+
+function cancelarReserva(reservaId) {
+    alert('Función de cancelación en desarrollo');
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM cargado, iniciando aplicación...');
+    
+    fechaSeleccionada = '{{ fecha_actual|date:"Y-m-d" }}';
+    actualizarFechaEnHeader();
+    
+    // Cargar profesionales y generar calendario automáticamente
+    cargarProfesionales();
+    
+    // Agregar listeners de slots usando delegación de eventos
+    // Esto asegura que funcione incluso cuando se modifica el DOM dinámicamente
+    setTimeout(() => {
+        agregarListenersSlots();
+    }, 500);
+    
+    // Abrir selector de fecha nativo al hacer click en la fecha del header
+    const fechaActualHeader = document.getElementById('fechaActualHeader');
+    const fechaPickerHeader = document.getElementById('fechaPickerHeader');
+    if (fechaPickerHeader) {
+        // Mantener el input sincronizado
+        fechaPickerHeader.value = fechaSeleccionada;
+        fechaPickerHeader.addEventListener('change', function() {
+            if (!this.value) return;
+            fechaSeleccionada = this.value;
+            actualizarFechaEnHeader();
+            cargarReservas();
+        });
+    }
+    if (fechaActualHeader && fechaPickerHeader) {
+        fechaActualHeader.addEventListener('click', function() {
+            try {
+                // Chromium (y algunos navegadores) soportan showPicker()
+                if (typeof fechaPickerHeader.showPicker === 'function') {
+                    fechaPickerHeader.showPicker();
+                } else {
+                    // Fallback
+                    fechaPickerHeader.focus();
+                    fechaPickerHeader.click();
+                }
+            } catch (e) {
+                // Fallback robusto
+                fechaPickerHeader.focus();
+                fechaPickerHeader.click();
+            }
+        });
+    }
+    
+    // DELEGACIÓN DE EVENTOS: Capturar clics en reservas de forma global
+    // Esto es más confiable que agregar listeners individuales
+    document.addEventListener('click', function(e) {
+        // Buscar si se hizo clic en una reserva o dentro de ella
+        const appointmentBlock = e.target.closest('.appointment-block');
+        if (appointmentBlock) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const reservaId = appointmentBlock.dataset.reservaId;
+            console.log('🖱️ Click detectado en reserva (delegación):', reservaId);
+            
+            // Buscar la reserva en el array global
+            if (reservas && reservas.length > 0) {
+                const reserva = reservas.find(r => String(r.id) === String(reservaId));
+                if (reserva) {
+                    console.log('📋 Reserva encontrada:', reserva);
+                    mostrarDetallesReserva(reserva);
+                } else {
+                    console.warn('⚠️ Reserva no encontrada en array, usando datos del DOM');
+                    // Crear objeto reserva desde los datos del DOM
+                    const reservaFromDOM = {
+                        id: reservaId,
+                        cliente: appointmentBlock.querySelector('.appointment-client')?.textContent || 'Cliente',
+                        servicio: appointmentBlock.querySelector('.appointment-service')?.textContent || 'Servicio',
+                        hora_inicio: appointmentBlock.querySelector('.appointment-time')?.textContent?.split(' - ')[0] || '',
+                        hora_fin: appointmentBlock.querySelector('.appointment-time')?.textContent?.split(' - ')[1] || '',
+                        estado: appointmentBlock.dataset.status || 'confirmado',
+                        notas: '',
+                        tiene_suscripcion: appointmentBlock.dataset.suscripcion === 'true'
+                    };
+                    mostrarDetallesReserva(reservaFromDOM);
+                }
+            } else {
+                console.warn('⚠️ Array de reservas vacío');
+            }
+        }
+    });
+    
+    // Configurar formulario de nueva reserva (cliente con cuenta)
+    const formNuevaReserva = document.getElementById('formNuevaReserva');
+    if (formNuevaReserva) {
+        formNuevaReserva.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Obtener datos del formulario
+            const formData = new FormData(formNuevaReserva);
+            const reservaData = {
+                cliente: formData.get('cliente'),
+                servicio: formData.get('servicio'),
+                fecha: formData.get('fecha'),
+                hora_inicio: formData.get('hora'),
+                profesional_id: formData.get('profesional') || 1,
+                notas: formData.get('notas') || ''
+            };
+            
+            // Validar datos requeridos
+            if (!reservaData.cliente || !reservaData.servicio || !reservaData.fecha || !reservaData.hora_inicio) {
+                alert('Por favor complete todos los campos requeridos');
+                return;
+            }
+            
+            // Crear la reserva
+            crearNuevaReserva(reservaData);
+        });
+    }
+    
+    // Configurar formulario de nueva reserva provisional
+    const formNuevaReservaProvisional = document.getElementById('formNuevaReservaProvisional');
+    if (formNuevaReservaProvisional) {
+        formNuevaReservaProvisional.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Obtener datos del formulario
+            const formData = new FormData(formNuevaReservaProvisional);
+            
+            // Validar datos requeridos
+            if (!formData.get('nombre_cliente') || !formData.get('telefono_cliente') || 
+                !formData.get('servicio') || !formData.get('fecha') || !formData.get('hora_inicio')) {
+                alert('Por favor complete todos los campos requeridos');
+                return;
+            }
+            
+            // Crear la reserva provisional
+            crearReservaProvisional(formData);
+        });
+    }
+    
+    // Mejoras para dispositivos móviles
+    inicializarMejorasMoviles();
+});
+
+// Función para inicializar mejoras específicas de móviles
+function inicializarMejorasMoviles() {
+    // Detectar si es un dispositivo móvil
+    const esMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (esMobile) {
+        console.log('Dispositivo móvil detectado, aplicando optimizaciones...');
+        
+        // Mejorar scroll en móviles
+        const scrollContainer = document.querySelector('.calendar-scroll-container');
+        if (scrollContainer) {
+            // Habilitar scroll suave en iOS
+            scrollContainer.style.webkitOverflowScrolling = 'touch';
+            
+            // Optimizar scroll horizontal en móviles
+            let isScrolling = false;
+            let startX = 0;
+            let startY = 0;
+            
+            scrollContainer.addEventListener('touchstart', function(e) {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+            });
+            
+            scrollContainer.addEventListener('touchmove', function(e) {
+                if (!isScrolling) {
+                    const deltaX = Math.abs(e.touches[0].clientX - startX);
+                    const deltaY = Math.abs(e.touches[0].clientY - startY);
+                    
+                    if (deltaX > deltaY) {
+                        // Scroll horizontal
+                        isScrolling = true;
+                        scrollContainer.style.overflowY = 'hidden';
+                    } else {
+                        // Scroll vertical
+                        isScrolling = true;
+                        scrollContainer.style.overflowX = 'hidden';
+                    }
+                }
+            });
+            
+            scrollContainer.addEventListener('touchend', function() {
+                setTimeout(() => {
+                    isScrolling = false;
+                    scrollContainer.style.overflowX = 'auto';
+                    scrollContainer.style.overflowY = 'auto';
+                }, 100);
+            });
+        }
+        
+        // Optimizar botones táctiles
+        const botonesTactiles = document.querySelectorAll('.btn, .sidebar-icon, .date-nav-btn, .action-btn');
+        botonesTactiles.forEach(boton => {
+            boton.addEventListener('touchstart', function() {
+                this.style.transform = 'scale(0.95)';
+            });
+            
+            boton.addEventListener('touchend', function() {
+                this.style.transform = 'scale(1)';
+            });
+        });
+        
+        // Mejorar experiencia de modales en móviles
+        const modales = document.querySelectorAll('.modal');
+        modales.forEach(modal => {
+            modal.addEventListener('show.bs.modal', function() {
+                // Ajustar altura del modal para móviles
+                const modalBody = this.querySelector('.modal-body');
+                if (modalBody) {
+                    const maxHeight = window.innerHeight * 0.7;
+                    modalBody.style.maxHeight = maxHeight + 'px';
+                    modalBody.style.overflowY = 'auto';
+                }
+            });
+        });
+        
+        // Optimizar carga de imágenes en móviles
+        const imagenes = document.querySelectorAll('img');
+        imagenes.forEach(img => {
+            img.loading = 'lazy';
+            img.decoding = 'async';
+        });
+        
+        // Mejorar navegación por fecha en móviles
+        const fechaActual = document.getElementById('fechaActual');
+        if (fechaActual) {
+            fechaActual.addEventListener('click', function() {
+                // En móviles, permitir selección de fecha
+                if (esMobile) {
+                    const inputFecha = document.createElement('input');
+                    inputFecha.type = 'date';
+                    inputFecha.value = fechaSeleccionada;
+                    inputFecha.style.position = 'absolute';
+                    inputFecha.style.opacity = '0';
+                    inputFecha.style.pointerEvents = 'none';
+                    
+                    document.body.appendChild(inputFecha);
+                    inputFecha.click();
+                    
+                    inputFecha.addEventListener('change', function() {
+                        fechaSeleccionada = this.value;
+                        actualizarFechaEnHeader();
+                        cargarReservas();
+                        document.body.removeChild(inputFecha);
+                    });
+                    
+                    setTimeout(() => {
+                        if (document.body.contains(inputFecha)) {
+                            document.body.removeChild(inputFecha);
+                        }
+                    }, 1000);
+                }
+            });
+        }
+    }
+}
+</script>
+{% endblock %}

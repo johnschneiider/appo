@@ -1,0 +1,7 @@
+# Cron para prospección de leads WhatsApp (APPO)
+# Ejecuta cada hora entre 8 AM y 8 PM hora Colombia (UTC‑5)
+# Horas UTC correspondientes: 13,14,15,16,17,18,19,20,21,22,23,0,1
+0 13-23,0-1 * * * /var/www/appo.com.co/scripts/cron_prospectar_leads.sh
+
+# Verificación de estado del servicio (opcional)
+*/30 * * * * /usr/bin/systemctl status gunicorn-appo > /dev/null || /usr/bin/systemctl restart gunicorn-appo

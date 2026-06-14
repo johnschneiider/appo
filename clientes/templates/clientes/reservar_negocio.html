@@ -109,14 +109,21 @@
 
             <div class="mb-3">
               <label for="id_profesional" class="form-label"><i class="bi bi-person me-1"></i> Profesional</label>
-              <select name="profesional" id="id_profesional" class="form-select" required>
+              {% if negocio.matriculaciones_aprobadas %}
+              <select name="profesional" id="id_profesional" class="form-select">
                 <option value="">Elige un profesional</option>
-                {% for prof in negocio.matriculaciones.all %}
-                  {% if prof.estado == 'aprobada' %}
-                    <option value="{{ prof.profesional.id }}">{{ prof.profesional.nombre_completo }}</option>
-                  {% endif %}
+                {% for m in negocio.matriculaciones_aprobadas %}
+                  <option value="{{ m.profesional.id }}" {% if profesional_preseleccionado and profesional_preseleccionado.id == m.profesional.id %}selected{% endif %}>
+                    {{ m.profesional.nombre_completo }}
+                  </option>
                 {% endfor %}
               </select>
+              {% else %}
+              <div class="alert alert-info py-2 mb-0" style="font-size:0.85rem;border-radius:8px;background:#f0f7ff;border-color:#b8d8ff;color:#1e3a8a;">
+                <i class="bi bi-info-circle me-1"></i>
+                Atendido por <strong>{{ negocio.propietario.username }}</strong> (propietario)
+              </div>
+              {% endif %}
             </div>
 
             <div class="row g-2 mb-3">

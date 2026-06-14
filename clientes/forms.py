@@ -173,7 +173,7 @@ class ReservaForm(forms.ModelForm):
 class ReservaNegocioForm(forms.ModelForm):
     servicio = forms.ModelChoiceField(queryset=ServicioNegocio.objects.none(), required=True, label="Servicio",
         widget=forms.Select(attrs={'class': 'form-select'}))
-    profesional = forms.ModelChoiceField(queryset=Profesional.objects.none(), required=True, label="Profesional",
+    profesional = forms.ModelChoiceField(queryset=Profesional.objects.none(), required=False, label="Profesional",
         widget=forms.Select(attrs={'class': 'form-select'}))
     imagen_referencia = forms.ImageField(
         required=False,
@@ -198,8 +198,16 @@ class ReservaNegocioForm(forms.ModelForm):
             from profesionales.models import Matriculacion, Profesional
             profesionales = Profesional.objects.filter(matriculaciones__negocio=negocio, matriculaciones__estado='aprobada').distinct()
             self.fields['profesional'].queryset = profesionales
+            
+            # Plan Esencial / negocios sin profesionales: campo opcional
+            if not profesionales.exists():
+                self.fields['profesional'].required = False
+                self.fields['profesional'].help_text = 'Este negocio es atendido directamente por su propietario.'
+            else:
+                self.fields['profesional'].required = True
+            
             self.fields['servicio'].queryset = ServicioNegocio.objects.filter(negocio=negocio)
-            self.fields['servicio'].label_from_instance = lambda obj: f"{obj.servicio.nombre} ({obj.duracion} min)"
+            self.fields['servicio'].label_from_instance = lambda obj: f"{obj.servicio.nombre} ({obj.duracion} min) · \${obj.precio:,.0f} COP" if obj.precio else f"{obj.servicio.nombre} ({obj.duracion} min)"
             # Si hay un profesional preseleccionado, filtrar servicios por los asignados a ese profesional
             if profesional_preseleccionado:
                 servicios_ids = profesional_preseleccionado.servicios.values_list('id', flat=True)

@@ -1411,6 +1411,7 @@ class ServicioNegocioForm(ModelForm):
         model = ServicioNegocio
         fields = ['servicio', 'duracion', 'precio']
 
+@login_required
 def gestionar_servicios(request, negocio_id):
     negocio = get_object_or_404(Negocio, id=negocio_id, propietario=request.user)
     ServicioFormSet = modelformset_factory(ServicioNegocio, form=ServicioNegocioForm, extra=1, can_delete=True)
@@ -2372,3 +2373,35 @@ def eliminar_servicio_negocio(request, servicio_negocio_id):
         logger.error(f"Error en eliminar_servicio_negocio: {str(e)}")
         messages.error(request, "Error al eliminar el servicio.")
         return redirect('negocios:mis_negocios')
+# ── Lista Negra (bloqueo de clientes incumplidos) ──
+@login_required
+def lista_negra(request, negocio_id):
+    negocio = get_object_or_404(Negocio, id=negocio_id, propietario=request.user)
+    
+    from clientes.models import Reserva
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    # Clientes con 2+ inasistencias en este negocio
+    inasistencias = Reserva.objects.filter(
+        peluquero=negocio,
+        estado='inasistencia',
+        cliente__isnull=False
+    ).values('cliente').annotate(total=Count('id')).filter(total__gte=2).order_by('-total')
+    
+    bloqueados = []
+    for item in inasistencias:
+        user = User.objects.get(id=item['cliente'])
+        bloqueados.append({
+            'user': user,
+            'inasistencias': item['total'],
+            'ultima': Reserva.objects.filter(
+                peluquero=negocio, cliente=user, estado='inasistencia'
+            ).order_by('-fecha').first()
+        })
+    
+    return render(request, 'negocios/lista_negra.html', {
+        'negocio': negocio,
+        'bloqueados': bloqueados,
+        'total_bloqueados': len(bloqueados),
+    })

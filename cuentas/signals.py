@@ -23,17 +23,25 @@ def handle_user_signed_up(sender, request, user, **kwargs):
 @receiver(pre_social_login)
 def handle_pre_social_login(sender, request, sociallogin, **kwargs):
     """
-    Signal que se ejecuta antes del login social
+    Signal que se ejecuta antes del login social.
+    Si el usuario viene del registro con tipo seleccionado, lo pasa al state.
     """
+    # Intentar obtener tipo desde query params del callback
+    tipo_desde_request = request.GET.get('tipo') or request.POST.get('tipo')
+    tipos_validos = ['cliente', 'negocio', 'profesional']
+    
+    if tipo_desde_request and tipo_desde_request in tipos_validos:
+        sociallogin.state['tipo'] = tipo_desde_request
+    
     if sociallogin.is_existing:
-        # Usuario existente, verificar si tiene tipo asignado
         user = sociallogin.user
         if not hasattr(user, 'tipo') or not user.tipo:
-            # Si no tiene tipo, redirigir a seleccionar
             sociallogin.state['next'] = reverse('cuentas:seleccionar_tipo_google')
     else:
-        # Usuario nuevo, redirigir a seleccionar tipo después del registro
-        sociallogin.state['next'] = reverse('cuentas:seleccionar_tipo_google')
+        # Usuario nuevo: si ya tiene tipo desde el registro, no redirigir a seleccionar
+        tipo_state = sociallogin.state.get('tipo') if hasattr(sociallogin, 'state') else None
+        if not tipo_state or tipo_state not in tipos_validos:
+            sociallogin.state['next'] = reverse('cuentas:seleccionar_tipo_google')
 
 @receiver(post_save, sender=UsuarioPersonalizado)
 def ensure_super_admin(sender, instance, **kwargs):

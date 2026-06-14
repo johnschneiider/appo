@@ -32,9 +32,8 @@ body {
 /* Layout principal del calendario */
 .calendar-app {
     display: flex;
-    height: 100vh;
+    min-height: 100vh;
     background: var(--calendar-bg);
-    overflow: hidden;
 }
 
 /* Sidebar izquierdo */
@@ -45,11 +44,7 @@ body {
     flex-direction: column;
     align-items: center;
     padding: 1rem 0;
-    position: fixed;
-    left: 0;
-    top: 0;
-    height: 100vh;
-    z-index: 1000;
+    flex-shrink: 0;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -94,18 +89,14 @@ body {
 
 /* Header principal */
 .calendar-header {
-    position: fixed;
-    top: 0;
-    left: 80px;
-    right: 0;
-    height: 80px;
     background: var(--header-bg);
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 2rem;
-    z-index: 999;
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
@@ -234,11 +225,13 @@ body {
 
 /* Contenido principal */
 .calendar-main {
-    margin-left: 80px;
-    margin-top: 80px;
     flex: 1;
-    padding: 2rem;
-    overflow-y: auto;
+    padding: 1.5rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 1rem;
 }
 
 /* Controles del calendario */
@@ -469,9 +462,26 @@ body {
 .calendar-grid {
     background: white;
     border-radius: 20px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     border: 1px solid var(--border-color);
+}
+
+/* Scrollbar horizontal visible para el grid (multiples profesionales) */
+.calendar-grid::-webkit-scrollbar {
+    height: 10px;
+}
+.calendar-grid::-webkit-scrollbar-track {
+    background: var(--light-color);
+    border-radius: 4px;
+}
+.calendar-grid::-webkit-scrollbar-thumb {
+    background: var(--secondary-color);
+    border-radius: 4px;
+}
+.calendar-grid::-webkit-scrollbar-thumb:hover {
+    background: var(--dark-color);
 }
 
 .calendar-header-row {
@@ -789,12 +799,8 @@ body {
         width: 60px;
     }
     
-    .calendar-header {
-        left: 60px;
-    }
-    
     .calendar-main {
-        margin-left: 60px;
+        padding: 1rem;
     }
     
     .sidebar-icon {
@@ -861,14 +867,7 @@ body {
         display: none;
     }
     
-    .calendar-header {
-        left: 0;
-        padding: 0 1rem;
-    }
-    
     .calendar-main {
-        margin-left: 0;
-        margin-top: 80px;
         padding: 0.75rem;
     }
     

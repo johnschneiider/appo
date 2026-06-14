@@ -1,0 +1,601 @@
+import os
+import json
+import time
+import logging
+from typing import List, Dict, Optional
+from django.conf import settings
+from django.utils import timezone
+import openai
+import requests
+
+logger = logging.getLogger(__name__)
+
+class ProspectorAgent:
+    """
+    Agente LLM para prospección de leads vía WhatsApp.
+    Usa OpenRouter con modelos gratuitos y mantiene contexto aislado por lead.
+    """
+    
+    # Modelos de OpenRouter gratuitos
+    FREE_MODELS = [
+        "google/gemma-4-31b-it:free",               # Gemma 4 31B (primario, 262K ctx, no emite razonamiento)
+        "meta-llama/llama-3.3-70b-instruct:free",   # Llama 3.3 70B (fallback, 131K ctx)
+        "nvidia/nemotron-3-super-120b-a12b:free",   # Nemotron 120B (ultimo recurso)
+    ]
+    
+    # Conocimiento base sobre APPO — Datos reales de appo.com.co v3.2.0 (Jun 2026)
+    BASE_KNOWLEDGE = """
+IDENTIDAD
+Eres Juan, del equipo de Appo. Una persona real, colombiano, que contacta barberías y peluquerías para ofrecerles la plataforma.
+Hablas criollo, directo, sin adornos. Como hablarías con un colega por WhatsApp.
+
+REGLAS DE ORO
+1. Mensajes de máximo 3 líneas. Si no cabe en 3 líneas, corta.
+2. Lenguaje de calle colombiano: "pa'", "ahorita", "dale", "pilas", "bien", "listo", "tranqui".
+3. Cero frases corporativas. Nada de "estimado", "gusto en saludarte", "perfecto", "excelente".
+4. Si el lead dice que no, se acaba. No insistas. Cierras con "Dale, tranqui. Buen día 🙌" y ya.
+5. Nunca mientas. Si te preguntan de dónde sacaste el número, dices la verdad: Google Maps, directorios públicos.
+6. NUNCA uses corchetes [] ni placeholders como [Negocio] o [Nombre]. Siempre responde con texto real.
+7. NUNCA re-envíes el saludo inicial. Si el lead ya respondió, sigue el guión.
+8. NUNCA hagas contrapreguntas innecesarias. Si alguien dice que ya tiene sistema, despídete con el link. No preguntes qué usan ni insistas.
+
+DETECCIÓN DE AUTO-RESPUESTAS (CRÍTICO)
+Muchos negocios tienen WhatsApp Business con mensajes automáticos. Si el lead manda un mensaje que parece automático, IGNÓRALO y NO respondas.
+
+Señales de auto-respuesta:
+- "Gracias por comunicarte con..."
+- "Te damos la bienvenida..."
+- "En este momento no podemos responder..."
+- "Fuera del horario..."
+- Mensajes con listas de barberos/servicios
+- Mensajes que no responden directamente a lo que preguntaste
+
+Si detectas auto-respuesta, respondes ÚNICAMENTE con un punto: "."
+
+Solo aplicas el guión cuando un HUMANO real te responde cosas como: "Sí, dígame", "Hola, ¿quién habla?", "¿De qué se trata?", "Cuénteme", etc.
+
+GUIÓN — PRIMER CONTACTO (cuando responden al saludo inicial)
+
+El sistema YA mandó el saludo inicial. El lead está respondiendo a ese saludo.
+Si el lead responde con "Sí, dígame", "Hola", "Buenos días", "¿Quién habla?", "¿De qué se trata?", o cualquier variación de estar presente:
+
+Tu respuesta DEBE ser:
+"Listo, gracias. Mira, soy Juan, de Appo, una plataforma de reservas para barberías. La pregunta es simple: ¿ustedes cómo manejan las citas hoy, por WhatsApp o llamadas?"
+
+NUNCA repitas el saludo inicial. El lead ya lo recibió. Solo avanza al guión.
+
+GUIÓN — SEGÚN RESPUESTA DEL LEAD
+
+Si dice "WhatsApp" o "Llamadas":
+"Claro, así manejan casi todas. Lo malo es que si uno no contesta, el cliente se va pa' otra barbería. Con Appo el cliente reserva solo desde el celular, a la hora que sea, y a ti solo te llega la notificación. Mira, Barbería Centro en Cali bajó las inasistencias un 42% y subió ingresos un 18%. Hay capa gratuita pa' siempre, sin límite de barberos, sin tarjeta. Y si quieres las funciones pro, son 49.000 por barbero al mes, 30 días gratis. ¿Cuántos barberos tienen?"
+
+Si dice "No me interesa" o "No gracias":
+"Dale, tranqui. Quédate con el dato por si acaso: appo.com.co, 30 días gratis, sin tarjeta. Buen día 🙌"
+
+Si dice "Ya tengo algo" o "Ya usamos otra":
+"Dale, entiendo. Si algún día te falla o te quita mucho tiempo, revisa appo.com.co. 30 días gratis, sin permanencia. Buen día 🙌"
+
+Si pregunta precios directamente:
+"Son 49.000 por barbero al mes, 30 días gratis, sin tarjeta de crédito. Sin permanencia, cancelas cuando quieras. ¿Cuántos barberos tienen?"
+
+Si pregunta cómo funciona:
+"Fácil: cada barbero tiene su perfil, los clientes entran al link de la barbería y agendan solos. Tú controlas agenda, barberos y métricas desde un solo lugar. Recordatorios automáticos por WhatsApp pa' que no te dejen plantado. ¿Cuántos barberos son?"
+
+GUIÓN — FOLLOW-UP DÍA 3 (si no respondió al primer mensaje)
+"Hola 👋 Soy Juan, te escribí hace un par de días. Tengo una plataforma que deja que tus clientes agenden solos las citas, sin llamar ni escribir. Te ahorra como 30 minutos diarios en puro WhatsApp. ¿Te explico en 1 minuto o no va por ahí?"
+
+GUIÓN — FOLLOW-UP DÍA 6 (último intento)
+"Juan otra vez, y ya esta es la última, tranqui. Solo te dejo el dato: appo.com.co, 30 días gratis, sin permanencia. Si algún día te sirve, ahí está. Buen día 🙌"
+
+SOBRE APPO — DATOS REALES DE appo.com.co (v3.2.0, Jun 2026)
+
+Appo es una plataforma colombiana para barberías y peluquerías. Tus clientes reservan solos desde su celular. Tú controlas agenda, barberos y métricas desde un solo lugar. Sin llamadas. Sin papel.
+
+FUNCIONALIDADES PRINCIPALES:
+- Agenda online 24/7 con link público de reservas
+- Recordatorios automáticos por WhatsApp (reduce inasistencias)
+- Lista negra de clientes incumplidos (bloqueo automático)
+- Gestión de múltiples barberos, cada uno con su propia agenda
+- Cálculo automático de comisiones por barbero
+- Estadísticas y reportes diarios de ventas
+- Días de descanso y bloqueo de agenda por barbero
+- Nómina de barberos
+- Campañas de fidelización por SMS y Email
+- Asistente de agenda con auto-relleno
+- Acceso desde cualquier dispositivo (celular, tablet, PC)
+- Perfil de barbería con fotos, servicios y precios
+- Backup diario de clientes
+
+CASO DE ÉXITO REAL:
+Barbería Centro (Cali): -42% inasistencias, +18% ingresos.
+"Antes esperábamos clientes que no llegaban. Ahora la agenda se llena sola y las citas se cumplen." — Carlos M., Dueño.
+
+MÁS DE 11 BARBERÍAS YA CONFÍAN EN APPO.
+
+PLANES Y PRECIOS (appo.com.co/cuentas/planes/):
+- Capa Gratuita: $0 COP para siempre. Sin tarjeta de crédito. Sin límite de barberos. Incluye: agenda y calendario de reservas, link de reservas, lista de servicios y precios, acceso desde cualquier dispositivo. Ideal para empezar.
+- Plan Pro: $49.000 COP por barbero al mes. 30 DÍAS GRATIS (sin cobro inicial, sin tarjeta de crédito). Sin contratos, sin permanencia. Incluye TODO: recordatorios WhatsApp, lista negra de inasistencias, comisiones automáticas, estadísticas avanzadas, perfil pro con fotos, campañas SMS/Email, asistente de agenda, soporte VIP por WhatsApp, backup diario.
+- Si expira el Plan Pro o el trial, el negocio vuelve automáticamente a la Capa Gratuita. No se bloquean las reservas ni se pierden datos.
+
+PREGUNTAS FRECUENTES (si el lead pregunta):
+- ¿Tienen app? Sí, funciona en cualquier navegador del celular, no hay que instalar nada.
+- ¿Cómo se paga? Tarjeta de crédito/débito o PSE, facturación electrónica.
+- ¿Tiene permanencia? No, cancelas cuando quieras. Sin multas.
+- ¿Los barberos necesitan instalar algo? No, solo abren su link desde el celular.
+- ¿Sirve para varias sedes? Sí, cada sede tiene su propia agenda.
+- ¿Ofrecen soporte? Sí, soporte VIP por WhatsApp para plan Pro.
+- ¿Cuánto cuesta? Capa Gratuita $0 para siempre. Plan Pro $49.000/barbero/mes, 30 días gratis.
+
+Web: appo.com.co
+Contacto: soporte@appo.com.co | +57 311 745 1274
+
+ORIGEN DEL NÚMERO (si preguntan)
+"Tu negocio está en Google Maps, de ahí sacamos el contacto. Andamos contactando barberías para ofrecer Appo."
+
+LÍMITES
+- No ofreces crear cuentas ni pides datos personales por WhatsApp. Solo das info y mandas al link.
+- Si el lead insiste en registrarse ya, le mandas appo.com.co/cuentas/registro/
+- No mencionas otros productos. Solo hablas de Appo.
+- Si preguntan por el creador, dices: "Appo lo construyó Jhon Jiménez, un desarrollador colombiano."
+- Contacto de soporte: soporte@appo.com.co
+"""
+    
+    def __init__(self):
+        self.api_key = os.getenv('OPENROUTER_API_KEY')
+        if not self.api_key:
+            raise ValueError("OPENROUTER_API_KEY no encontrada en variables de entorno")
+        
+        self.model = self.FREE_MODELS[0]
+        self.fallback_model = self.FREE_MODELS[1]
+        self.max_retries = 3
+        self.retry_delay = 2  # segundos
+    
+    def _call_api(self, messages: List[Dict], model: str = None) -> Optional[str]:
+        """Llamada a la API de OpenRouter con manejo de reintentos."""
+        import requests as _requests
+        if model is None:
+            model = self.model
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://appo.com.co",
+            "X-Title": "APPO Lead Prospector",
+        }
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 1500,
+            "extra_body": {
+                "reasoning": False
+            }
+        }
+        
+        for attempt in range(self.max_retries):
+            try:
+                resp = _requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                content = data['choices'][0]['message']['content']
+                
+                if content:
+                    import re
+                    
+                    reasoning_patterns = [
+                        r'^Wait[,\s].*',
+                        r'^Wait, the instructions.*',
+                        r'^Let me think.*',
+                        r'^Let\'?s think.*',
+                        r'^Thinking.*',
+                        r'^Okay,.*',
+                        r'^Okay, the user.*',
+                        r'^Hmm,.*',
+                        r'^First,.*',
+                        r'^Looking at.*',
+                        r'^Looking back.*',
+                        r'^Based on.*',
+                        r'^Based on the.*',
+                        r'^So,.*',
+                        r'^The user said.*',
+                        r'^Now,.*',
+                        r'^Actually,.*',
+                        r'^Well,.*',
+                        r'^Perhaps.*',
+                        r'^Maybe.*',
+                        r'^I should.*',
+                        r'^I need to.*',
+                        r'^Let me check.*',
+                        r'^Let me see.*',
+                        r'^Let\'?s see.*',
+                        r'^In this case.*',
+                        r'^Given the.*',
+                        r'^Given that.*',
+                        r'^Since.*',
+                        r'^Because.*',
+                        r'^However.*',
+                        r'^But.*',
+                        r'^Also.*',
+                        r'^Additionally.*',
+                        r'^Furthermore.*',
+                        r'^Moreover.*',
+                        r'^Therefore.*',
+                        r'^Thus.*',
+                        r'^Hence.*',
+                        r'^Consequently.*',
+                        r'^As a result.*',
+                        r'^To summarize.*',
+                        r'^In summary.*',
+                        r'^In conclusion.*',
+                        r'^To conclude.*',
+                        r'^Espera,.*',
+                        r'^Espera un momento.*',
+                        r'^Déjame pensar.*',
+                        r'^Déjame ver.*',
+                        r'^Pensando.*',
+                        r'^Entonces,.*',
+                        r'^En este caso.*',
+                        r'^Dado que.*',
+                        r'^Ya que.*',
+                        r'^Porque.*',
+                        r'^Sin embargo.*',
+                        r'^Pero.*',
+                        r'^También.*',
+                        r'^Además.*',
+                        r'^Por lo tanto.*',
+                        r'^Así que.*',
+                        r'^En resumen.*',
+                        r'^Para resumir.*',
+                        r'^En conclusión.*',
+                        r'^Para concluir.*',
+                        r'^.*reasoning.*:',
+                        r'^.*thinking.*:',
+                        r'^.*analysis.*:',
+                    ]
+                    
+                    lines = content.split('\n')
+                    cleaned_lines = []
+                    skip_mode = False
+                    
+                    for line in lines:
+                        line_stripped = line.strip()
+                        if not line_stripped:
+                            if skip_mode:
+                                skip_mode = False
+                            continue
+                        
+                        is_reasoning = False
+                        for pattern in reasoning_patterns:
+                            if re.match(pattern, line_stripped, re.IGNORECASE):
+                                is_reasoning = True
+                                break
+                        
+                        if not is_reasoning and skip_mode:
+                            continue
+                        
+                        if is_reasoning:
+                            skip_mode = True
+                            continue
+                        
+                        if skip_mode:
+                            skip_mode = False
+                        
+                        cleaned_lines.append(line_stripped)
+                    
+                    if cleaned_lines:
+                        content = ' '.join(cleaned_lines)
+                        import re
+                        content = re.sub(r'\s+', ' ', content).strip()
+                    else:
+                        content = content.strip()
+                
+                return content.strip() if content else None
+                
+            except Exception as e:
+                logger.warning(f"Intento {attempt+1}/{self.max_retries} falló con modelo {model}: {e}")
+                
+                if "rate limit" in str(e).lower() or "429" in str(e):
+                    wait_time = self.retry_delay * (attempt + 1)
+                    logger.info(f"Rate limit detectado, esperando {wait_time}s")
+                    time.sleep(wait_time)
+                else:
+                    time.sleep(self.retry_delay)
+                
+                if attempt == self.max_retries - 1 and model != self.fallback_model:
+                    logger.info(f"Probando con modelo fallback: {self.fallback_model}")
+                    return self._call_api(messages, model=self.fallback_model)
+        
+        return None
+    
+    def generar_mensaje_inicial(self, nombre_establecimiento: str, ciudad: str = None) -> str:
+        """
+        Genera el primer mensaje estático de prospección con saludo horario colombiano.
+        """
+        import pytz
+        from django.utils import timezone
+
+        tz_col = pytz.timezone('America/Bogota')
+        hora = timezone.now().astimezone(tz_col).hour
+
+        if hora < 12:
+            saludo = "buenos días"
+        elif hora < 19:
+            saludo = "buenas tardes"
+        else:
+            saludo = "buenas noches"
+
+        return f"Hola, {saludo} 👋 ¿Aquí es {nombre_establecimiento}?"
+    
+    def generar_respuesta(self, 
+                         historial_conversacion: List[Dict], 
+                         ultimo_mensaje_cliente: str) -> Optional[str]:
+        """
+        Genera una respuesta contextual basada en el historial de conversación.
+        """
+        logger.error(f'[GENERAR_RESPUESTA] historial_conversacion length: {len(historial_conversacion)}')
+        logger.error(f'[GENERAR_RESPUESTA] ultimo_mensaje_cliente: {ultimo_mensaje_cliente}')
+        if len(historial_conversacion) == 0:
+            logger.error('[GENERAR_RESPUESTA] Historial vacío - primera interacción')
+        
+        system_prompt = f"""{self.BASE_KNOWLEDGE}
+        
+        IMPORTANTE: Responde SIEMPRE en español.
+        Sé muy amable y cálido en cada respuesta. La amabilidad es tu prioridad número uno.
+        """
+        
+        messages = [
+            {"role": "system", "content": system_prompt}
+        ]
+        
+        for msg in historial_conversacion:
+            if msg["role"] == "assistant":
+                messages.append({"role": "assistant", "content": msg["content"]})
+            else:
+                messages.append({"role": "user", "content": msg["content"]})
+        
+        messages.append({"role": "user", "content": ultimo_mensaje_cliente})
+        
+        logger.error(f'[GENERAR_RESPUESTA] messages a enviar a API: {json.dumps(messages, ensure_ascii=False)[:1000]}')
+        
+        respuesta = self._call_api(messages)
+        logger.error(f'[GENERAR_RESPUESTA] respuesta de API: {respuesta}')
+        
+        if respuesta:
+            respuesta = respuesta.strip()
+            razonamiento_markers = [
+                'needs to stick to the script', 'need to follow', 'should respond with',
+                'according to the rules', 'the system already', 'as per the',
+                'let me think', 'let\'s think', 'wait, the', 'but wait',
+                'in this case', 'the lead\'s response', 'looking at the',
+                'first message from lead', 'second message from lead',
+                'alternatively, maybe', 'so regardless', 'then juan',
+                'so the lead', 'then the lead', 'so in this case',
+            ]
+            resp_lower = respuesta.lower()
+            is_razonamiento = any(m in resp_lower for m in razonamiento_markers)
+            is_too_long = len(respuesta) > 400
+            
+            if is_razonamiento or is_too_long:
+                logger.warning(f'[SAFETY] Respuesta filtrada por safety: {respuesta[:100]}...')
+                return None
+            
+        return respuesta if respuesta else None
+    
+    def evaluar_intencion(self, mensaje_cliente: str) -> Dict:
+        """
+        Evalúa la intención del lead basado en su mensaje.
+        """
+        prompt = f"""Clasifica la intención del siguiente mensaje de un lead:
+        
+        "{mensaje_cliente}"
+        
+        Opciones:
+        1. "pregunta_precio" - Pregunta por precios, costos, tarifas
+        2. "interesado" - Muestra interés en el servicio
+        3. "informacion" - Pide más información general
+        4. "negativo" - Rechazo o desinterés
+        5. "neutral" - Saludo o mensaje neutro
+        
+        Responde SOLO con el nombre de la categoría (una palabra)."""
+        
+        messages = [
+            {"role": "system", "content": "Eres un clasificador de intenciones comerciales. Devuelves solo la palabra clave."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        categoria = self._call_api(messages)
+        if categoria:
+            categoria = categoria.strip().lower()
+            validas = ["pregunta_precio", "interesado", "informacion", "negativo", "neutral"]
+            if categoria not in validas:
+                if "precio" in categoria or "cuesta" in categoria or "costo" in categoria:
+                    categoria = "pregunta_precio"
+                elif "interesa" in categoria or "me gusta" in categoria:
+                    categoria = "interesado"
+                elif "información" in categoria or "más info" in categoria:
+                    categoria = "informacion"
+                elif "no" in categoria or "gracias" in categoria or "adiós" in categoria:
+                    categoria = "negativo"
+                else:
+                    categoria = "neutral"
+        else:
+            categoria = "neutral"
+        
+        score = 0.7 if categoria in ["interesado", "pregunta_precio"] else 0.3
+        
+        return {"categoria": categoria, "score": score}
+
+
+# --- Funciones de envío en partes ---
+import time as _time
+import random as _random
+
+def formatear_saludo(nombre: str) -> list[str]:
+    """
+    Retorna el saludo inicial con horario colombiano.
+    """
+    import pytz
+    from django.utils import timezone
+
+    tz_col = pytz.timezone('America/Bogota')
+    hora = timezone.now().astimezone(tz_col).hour
+
+    if hora < 12:
+        saludo = "buenos días"
+    elif hora < 19:
+        saludo = "buenas tardes"
+    else:
+        saludo = "buenas noches"
+
+    return [f"Hola, {saludo} 👋 ¿Aquí es {nombre}?"]
+
+def guardar_mensaje(conversacion, role: str, contenido: str):
+    """Guarda un mensaje en la conversación."""
+    ahora = timezone.now()
+    conversacion.mensajes.append({
+        'role': role,
+        'content': contenido,
+        'timestamp': ahora.isoformat()
+    })
+    conversacion.ultimo_contacto = ahora
+    conversacion.save()
+
+def procesar_lead_inicial(lead_id: int) -> list[str]:
+    """Retorna lista de partes para envío separado en lugar de un bloque único."""
+    from leads_admin.models import Lead, LeadConversacion
+    lead = Lead.objects.using('leads_db').get(id=lead_id)
+    nombre = lead.nombre_establecimiento or "amigo"
+    conv, _ = LeadConversacion.objects.using('leads_db').get_or_create(
+        lead=lead,
+        defaults={'mensajes': [], 'estado': 'nuevo'}
+    )
+    partes = formatear_saludo(nombre)
+    mensaje_completo = "\n\n".join(partes)
+    guardar_mensaje(conv, "assistant", mensaje_completo)
+    if conv.estado == 'nuevo':
+        conv.estado = 'contactado'
+        conv.save()
+    return partes
+
+def procesar_lead(lead_id: int, mensaje_entrante: str = None) -> str:
+    """Procesa un lead y devuelve respuesta (string)."""
+    from leads_admin.models import Lead, LeadConversacion
+    from django.utils import timezone
+    
+    lead = Lead.objects.using('leads_db').get(id=lead_id)
+    
+    conv, _ = LeadConversacion.objects.using('leads_db').get_or_create(
+        lead=lead,
+        defaults={'mensajes': [], 'estado': 'nuevo'}
+    )
+    
+    if mensaje_entrante is None:
+        nombre = lead.nombre_establecimiento or "amigo"
+        partes = formatear_saludo(nombre)
+        mensaje_completo = "\n\n".join(partes)
+        guardar_mensaje(conv, "assistant", mensaje_completo)
+        if conv.estado == 'nuevo':
+            conv.estado = 'contactado'
+            conv.save()
+        return mensaje_completo
+    else:
+        agent = get_prospector_agent()
+        historial_previo = list(conv.mensajes) if conv.mensajes else []
+        logger.error(f'[PROCESAR_LEAD] historial_previo length: {len(historial_previo)}')
+        logger.error(f'[PROCESAR_LEAD] mensaje entrante: {mensaje_entrante}')
+        respuesta = agent.generar_respuesta(historial_previo, mensaje_entrante)
+        logger.error(f'[PROCESAR_LEAD] respuesta generada: {respuesta}' if respuesta else '[PROCESAR_LEAD] respuesta generada: None')
+
+        guardar_mensaje(conv, "user", mensaje_entrante)
+        if respuesta:
+            guardar_mensaje(conv, "assistant", respuesta)
+            conv.ultimo_contacto = timezone.now()
+            conv.estado = 'contactado'
+            conv.save(using='leads_db')
+            return respuesta
+        else:
+            fallback = _generar_fallback_contextual(conv, mensaje_entrante)
+            guardar_mensaje(conv, "assistant", fallback)
+            conv.ultimo_contacto = timezone.now()
+            conv.save(using='leads_db')
+            return fallback
+
+
+def _generar_fallback_contextual(conv, mensaje_cliente: str) -> str:
+    """Genera un fallback que continúa la conversación, no la resetea."""
+    nombre = conv.lead.nombre_establecimiento or ""
+    mensaje_cliente_lower = mensaje_cliente.lower().strip()
+    
+    msgs = conv.mensajes if isinstance(conv.mensajes, list) else []
+    ultimo_nuestro = ""
+    for m in reversed(msgs):
+        if m.get('role') == 'assistant':
+            ultimo_nuestro = m.get('content', '')
+            break
+    
+    if any(word in mensaje_cliente_lower for word in ['cuanto', 'precio', 'cuesta', 'vale', 'plan', 'planes']):
+        return "Son 49.000 por barbero al mes, 30 días gratis, sin tarjeta. Sin permanencia, cancelas cuando quieras. ¿Cuántos barberos tienen más o menos?"
+    
+    if any(word in mensaje_cliente_lower for word in ['demo', 'probar', 'prueba', 'ver', 'mostrar', 'explicar', 'info', 'información', 'plataforma']):
+        return "Mira, es fácil: cada barbero tiene su perfil, los clientes entran al link de la barbería y agendan solos donde haya cupo. Tú solo ves la agenda del día. ¿Te sirve algo así o manejan todo por WhatsApp ahorita?"
+    
+    if any(word in mensaje_cliente_lower for word in ['si', 'dale', 'bien', 'listo', 'ok', 'claro', 'interesa', 'adelante', 'cuéntame', 'dime']):
+        return "Es una plataforma de reservas para barberías. Tus clientes agendan solos sin escribirte, y tú ves toda la agenda del día. ¿Cómo manejas las citas hoy, por WhatsApp o libreta?"
+    
+    if any(word in mensaje_cliente_lower for word in ['no', 'ahorita no', 'después', 'gracias']):
+        return "Dale, tranqui. Cuando gustes, en appo.com.co está toda la info. Buen día 🙌"
+    
+    if nombre:
+        return f"Recibido 👍 ¿seguimos? Te contaba que Appo les ahorra todo el tema de agendar por WhatsApp — los clientes entran y reservan solos."
+    else:
+        return "Recibido 👍 Te contaba que Appo es una plataforma para que tus clientes agenden solos sin escribirte. ¿Cómo manejan las citas ahorita?"
+
+
+def procesar_mensaje_whatsapp(remote_jid: str, mensaje_cliente: str, phone: str = None) -> str:
+    """Procesa un mensaje de WhatsApp para un número no registrado como lead."""
+    from leads_admin.models import ChatWhatsApp, MensajeWhatsApp
+    from django.utils import timezone
+    
+    agent = get_prospector_agent()
+    
+    historial_mensajes = MensajeWhatsApp.objects.using('leads_db').filter(
+        chat__chat_id=remote_jid
+    ).order_by('id')[:20]
+    
+    historial_conversacion = []
+    for msg in historial_mensajes:
+        role = "assistant" if msg.from_me else "user"
+        historial_conversacion.append({
+            "role": role,
+            "content": msg.message_text or "",
+            "timestamp": msg.timestamp.isoformat() if hasattr(msg, 'timestamp') and msg.timestamp else ""
+        })
+    
+    logger.info(f'[PROCESAR_WHATSAPP] Historial para {remote_jid}: {len(historial_conversacion)} mensajes')
+    
+    respuesta = agent.generar_respuesta(historial_conversacion, mensaje_cliente)
+    
+    if respuesta:
+        logger.info(f'[PROCESAR_WHATSAPP] Respuesta generada para {remote_jid}: {respuesta[:100]}...')
+        return respuesta
+    else:
+        nombre = phone or "amigo"
+        fallback = f"Hola, gracias por escribir a Appo 😊 Soy Juan. ¿En qué te puedo ayudar?"
+        logger.warning(f'[PROCESAR_WHATSAPP] Fallback usado para {remote_jid}')
+        return fallback
+
+
+# Instancia global (singleton)
+_agent_instance = None
+
+def get_prospector_agent() -> ProspectorAgent:
+    """Obtener instancia única del agente."""
+    global _agent_instance
+    if _agent_instance is None:
+        _agent_instance = ProspectorAgent()
+    return _agent_instance

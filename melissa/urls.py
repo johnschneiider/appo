@@ -7,6 +7,7 @@ from negocios.models import Negocio
 from django.utils import timezone
 from django.db.models import Count, Avg
 from negocios import views
+from django.views.generic import RedirectView
 
 def inicio(request):
     """
@@ -58,6 +59,7 @@ handler429 = "melissa.urls.custom_429"
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('accounts/login/', RedirectView.as_view(url='/cuentas/login/', permanent=False)),
     path('accounts/', include('allauth.urls')),
     path('cuentas/', include('cuentas.urls')),
     path('', inicio, name='inicio'),
@@ -70,4 +72,6 @@ urlpatterns = [
     path('chat/', include('chat.urls')),
     path('ia-visagismo/', include('ia_visagismo.urls')),
     path('suscripciones/', include('suscripciones.urls')),
+    path('negocio/billing/', include('billing.urls')),
+    path('leads/', include('leads_admin.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

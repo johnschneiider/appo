@@ -31,7 +31,9 @@ def log_user_activity(user, action, details=None, ip_address=None):
 
 def log_security_event(user, event_type, details=None, ip_address=None):
     """Registra eventos de seguridad"""
-    if isinstance(user, AnonymousUser):
+    if user is None:
+        user_info = {'username': 'Unknown', 'tipo': 'Unknown'}
+    elif isinstance(user, AnonymousUser):
         user_info = {'username': 'Anonymous', 'tipo': 'Anonymous'}
     else:
         user_info = {

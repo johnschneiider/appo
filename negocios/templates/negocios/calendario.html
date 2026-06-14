@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% block extra_css %}
-<link href="{% static 'css/negocios/calendario.css' %}" rel="stylesheet">
+<link href="{% static 'css/negocios/calendario.css' %}?v=4.2.0" rel="stylesheet">
 <style>
 /* Estilos específicos para el nuevo diseño de calendario */
 :root {
@@ -32,24 +32,22 @@
 
 /* Layout principal */
 .calendar-app {
-    display: flex;
-    height: 100dvh;
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    grid-template-rows: auto 1fr;
+    min-height: 100dvh;
     background: var(--calendar-bg);
 }
-
-/* Sidebar izquierdo */
 .calendar-sidebar {
+    grid-column: 1;
+    grid-row: 1 / -1;
     width: 80px;
     background: var(--sidebar-bg);
     display: flex;
     flex-direction: column;
     align-items: center;
     padding: 1rem 0;
-    position: fixed;
-    left: 0;
-    top: 0;
-    height: 100dvh;
-    z-index: 1000;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
 }
 
 .sidebar-icon {
@@ -75,21 +73,17 @@
     background: var(--primary-color);
     color: white;
 }
-
-/* Header principal mejorado */
 .calendar-header {
-    position: fixed;
-    top: 0;
-    left: 80px;
-    right: 0;
-    height: 80px;
+    grid-column: 2;
+    grid-row: 1;
     background: var(--header-bg);
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 1.5rem;
-    z-index: 999;
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
@@ -166,20 +160,20 @@
 .current-date-large .date-day {
     font-size: 1.75rem;
     font-weight: 800;
-    color: white !important;
+    color: var(--dark-color);
     line-height: 1;
 }
 
 .current-date-large .date-month {
     font-size: 0.85rem;
     font-weight: 600;
-    color: white !important;
+    color: var(--dark-color);
     text-transform: capitalize;
 }
 
 .current-date-large .date-weekday {
     font-size: 0.75rem;
-    color: white !important;
+    color: var(--dark-color);
     text-transform: capitalize;
 }
 
@@ -310,10 +304,14 @@
 
 /* Contenido principal */
 .calendar-main {
-    margin-left: 80px;
-    margin-top: 80px;
-    flex: 1;
-    padding: 2rem;
+    grid-column: 2;
+    grid-row: 2;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 1rem;
+    overflow: hidden;
 }
 
 /* Info rápida del calendario */
@@ -471,20 +469,6 @@
     isolation: isolate;
 }
 
-/* Estilos críticos para el modal del calendario */
-.modal-fullscreen .calendar-fullscreen-container {
-    /* Asegurar que el scroll funcione correctamente */
-    overflow: auto !important;
-    /* Forzar que el sticky funcione */
-    position: relative !important;
-    /* Ajustar para el header fijo */
-    height: calc(100vh - 80px) !important;
-    margin-top: 0 !important;
-    /* Asegurar que el sticky funcione correctamente */
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-}
-
 /* Solución simple y efectiva para columna de horas estática */
 /* Contenedor principal con scroll */
 .calendar-scroll-container {
@@ -500,62 +484,41 @@
     z-index: 1;
 }
 
-/* Solo las celdas de tiempo son estáticas */
-.time-slot {
-    position: sticky;
-    left: 0;
-    z-index: 10;
-    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
-    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-}
-
-/* El título de la columna hora NO es estático */
-.time-header-fixed {
-    /* Sin position: sticky - se mueve con el scroll */
-    background: var(--primary-color);
-    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-}
-
-/* Para el modal de pantalla completa */
-.modal-fullscreen .calendar-fullscreen-container {
-    position: relative;
-    overflow: auto;
-}
-
-.modal-fullscreen .time-slot {
-    position: sticky;
-    left: 0;
-    z-index: 10;
-    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
-}
-
-.modal-fullscreen .time-header-fixed {
-    /* Sin position: sticky - se mueve con el scroll */
-    background: var(--primary-color);
-}
-
-/* Estilos básicos para la columna de horas */
-.time-header-fixed {
+/* Columna de hora (header y celdas) */
+.calendar-fullscreen-container .time-header-fixed,
+.calendar-fullscreen-container .time-slot {
     width: 100px;
     min-width: 100px;
     height: 80px;
     padding: 0.75rem;
-    font-weight: 600;
+    flex-shrink: 0;
+    font-weight: 700;
     text-align: center;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-    font-size: 1.1rem;
-    letter-spacing: 0.5px;
-    color: white;
 }
 
-/* Estilos básicos para las celdas de tiempo */
-.time-slot {
-    width: 100px;
-    min-width: 100px;
-    height: 80px;
+.calendar-fullscreen-container .time-header-fixed {
+    background: var(--primary-color);
+    color: white;
+    font-size: 1.1rem;
+    letter-spacing: 0.5px;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
+.calendar-fullscreen-container .time-slot {
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    color: var(--dark-color);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
     padding: 0.75rem;
     background: linear-gradient(135deg, #f8fafc, #e2e8f0);
     font-weight: 700;
@@ -571,9 +534,9 @@
 }
 
 /* Estilos responsivos para la columna de horas */
-@media (max-width: 1024px) {
-    .time-header-fixed,
-    .time-slot {
+@media (max-width: 1200px) {
+    .calendar-fullscreen-container .time-header-fixed,
+    .calendar-fullscreen-container .time-slot {
         width: 80px;
         min-width: 80px;
         padding: 0.5rem;
@@ -581,9 +544,9 @@
     }
 }
 
-@media (max-width: 768px) {
-    .time-header-fixed,
-    .time-slot {
+@media (max-width: 1024px) {
+    .calendar-fullscreen-container .time-header-fixed,
+    .calendar-fullscreen-container .time-slot {
         width: 70px;
         min-width: 70px;
         height: 60px;
@@ -592,9 +555,9 @@
     }
 }
 
-@media (max-width: 576px) {
-    .time-header-fixed,
-    .time-slot {
+@media (max-width: 768px) {
+    .calendar-fullscreen-container .time-header-fixed,
+    .calendar-fullscreen-container .time-slot {
         width: 60px;
         min-width: 60px;
         height: 50px;
@@ -623,13 +586,6 @@
 }
 
 @media (max-width: 992px) {
-    .calendar-header {
-        flex-wrap: wrap;
-        height: auto;
-        padding: 0.75rem 1rem;
-        gap: 0.75rem;
-    }
-    
     .header-left {
         order: 1;
         flex: 0 0 auto;
@@ -646,10 +602,6 @@
         flex: 0 0 auto;
     }
     
-    .calendar-main {
-        margin-top: 130px;
-    }
-    
     .date-navigation-header {
         width: 100%;
         justify-content: center;
@@ -661,12 +613,7 @@
         width: 60px;
     }
     
-    .calendar-header {
-        left: 60px;
-    }
-    
     .calendar-main {
-        margin-left: 60px;
         padding: 1rem;
     }
     
@@ -693,17 +640,20 @@
 }
 
 @media (max-width: 576px) {
+    .calendar-app {
+        grid-template-columns: 1fr !important;
+    }
+    
     .calendar-sidebar {
-        display: none;
+        display: none !important;
     }
     
     .calendar-header {
-        left: 0;
+        grid-column: 1;
     }
     
     .calendar-main {
-        margin-left: 0;
-        margin-top: 150px;
+        grid-column: 1;
         padding: 0.75rem;
     }
     
@@ -722,10 +672,76 @@
     }
 }
 
+@media (max-width: 480px) {
+    .calendar-header {
+        padding: 0.4rem 0.5rem;
+        gap: 0.4rem;
+    }
+    
+    .header-left .logo {
+        font-size: 0.85rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100px;
+    }
+    
+    .header-title-section small {
+        display: none;
+    }
+    
+    .nav-btn-large {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+    
+    .today-btn-header {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.7rem;
+    }
+    
+    .date-navigation-header {
+        gap: 0.3rem;
+        padding: 0.3rem 0.5rem;
+    }
+    
+    .current-date-large {
+        min-width: 80px;
+        padding: 0 0.3rem;
+    }
+    
+    .current-date-large .date-day {
+        font-size: 1rem;
+    }
+    
+    .current-date-large .date-month {
+        font-size: 0.6rem;
+    }
+    
+    .current-date-large .date-weekday {
+        font-size: 0.65rem;
+    }
+    
+    .add-btn-header {
+        padding: 0.4rem 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .add-btn-header span {
+        display: none;
+    }
+    
+    .action-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+}
+
 /* Estilos responsivos para el header fijo */
 @media (max-width: 1024px) {
-    .calendar-scroll-container .calendar-grid .calendar-header-row .time-header-fixed,
-    .modal-fullscreen .calendar-fullscreen-container .calendar-grid .calendar-header-row .time-header-fixed {
+    .calendar-scroll-container .calendar-grid .calendar-header-row .time-header-fixed {
         left: 0 !important;
         width: 80px !important;
         min-width: 80px !important;
@@ -735,8 +751,7 @@
 }
 
 @media (max-width: 768px) {
-    .calendar-scroll-container .calendar-grid .calendar-header-row .time-header-fixed,
-    .modal-fullscreen .calendar-fullscreen-container .calendar-grid .calendar-header-row .time-header-fixed {
+    .calendar-scroll-container .calendar-grid .calendar-header-row .time-header-fixed {
         left: 0 !important;
         top: 0 !important;
         width: 70px !important;
@@ -748,8 +763,7 @@
 }
 
 @media (max-width: 576px) {
-    .calendar-scroll-container .calendar-grid .calendar-header-row .time-header-fixed,
-    .modal-fullscreen .calendar-fullscreen-container .calendar-grid .calendar-header-row .time-header-fixed {
+    .calendar-scroll-container .calendar-grid .calendar-header-row .time-header-fixed {
         left: 0 !important;
         top: 0 !important;
         width: 60px !important;
@@ -806,22 +820,22 @@
 }
 
 /* Contenedor principal del calendario */
-.calendar-main {
-    margin-left: 80px;
-    margin-top: 80px;
-    margin-bottom: 2rem; /* Espacio antes del footer */
-    flex: 1;
-    padding: 2rem;
-    width: 100%;
-    max-width: none;
-    height: calc(100dvh - 120px); /* Ajustado para incluir el margen inferior */
-    overflow: visible; /* Sin scroll en el contenedor principal */
-}
-
 .calendar-header-row {
     display: flex;
     background: var(--light-color);
     border-bottom: 2px solid var(--border-color);
+}
+
+.calendar-time-row {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Forzar que todas las filas usen exactamente el mismo ancho de columna */
+.calendar-header-row .professional-header,
+.calendar-time-row .professional-slot {
+    min-width: 250px;
+    flex: 1 0 250px;
 }
 
 .time-header {
@@ -1250,17 +1264,20 @@
 
 /* Responsive */
 @media (max-width: 1024px) {
+    .calendar-app {
+        grid-template-columns: 60px 1fr;
+    }
+    
     .calendar-sidebar {
         width: 60px;
     }
     
     .calendar-header {
-        left: 60px;
+        grid-column: 2;
     }
     
     .calendar-main {
-        margin-left: 60px;
-        height: calc(100dvh - 80px);
+        grid-column: 2;
     }
     
     .sidebar-icon {
@@ -1279,19 +1296,21 @@
 }
 
 @media (max-width: 768px) {
+    .calendar-app {
+        grid-template-columns: 50px 1fr;
+    }
+    
     .calendar-sidebar {
         width: 50px;
     }
     
     .calendar-header {
-        left: 50px;
-        height: 70px;
-        padding: 0 1rem;
+        grid-column: 2;
+        padding: 0.5rem 0.75rem;
     }
     
     .calendar-main {
-        margin-left: 50px;
-        margin-top: 70px;
+        grid-column: 2;
         padding: 1rem;
     }
     
@@ -1420,19 +1439,21 @@
 }
 
 @media (max-width: 768px) {
+    .calendar-app {
+        grid-template-columns: 50px 1fr;
+    }
+    
     .calendar-sidebar {
         width: 50px;
     }
     
     .calendar-header {
-        left: 50px;
-        height: 70px;
-        padding: 0 1rem;
+        grid-column: 2;
+        padding: 0.5rem 0.75rem;
     }
     
     .calendar-main {
-        margin-left: 50px;
-        margin-top: 70px;
+        grid-column: 2;
         padding: 1rem;
     }
     
@@ -1566,14 +1587,12 @@
     }
     
     .calendar-header {
-        left: 0;
-        height: 60px;
-        padding: 0 0.75rem;
+        grid-column: 1;
+        padding: 0.5rem 0.75rem;
     }
     
     .calendar-main {
-        margin-left: 0;
-        margin-top: 60px;
+        grid-column: 1;
         padding: 0.75rem;
     }
     
@@ -1792,282 +1811,16 @@
     padding-bottom: 2rem; /* Espacio adicional antes del footer */
 }
 
-/* Estilos para el botón del calendario */
-.calendar-button-container {
-    text-align: center;
-    padding: 3rem 2rem;
-    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
-    border-radius: 16px;
-    border: 2px dashed var(--border-color);
-    margin: 2rem 0;
-}
-
-.calendar-modal-btn {
-    background: linear-gradient(135deg, var(--primary-color), #1E5BC6);
-    border: none;
-    padding: 1rem 2rem;
-    font-size: 1.1rem;
-    font-weight: 600;
-    border-radius: 12px;
-    box-shadow: 0 4px 16px rgba(19, 58, 127, 0.3);
-    transition: all 0.3s ease;
-}
-
-.calendar-modal-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(19, 58, 127, 0.4);
-    background: linear-gradient(135deg, #1E5BC6, #0e2d66);
-}
-
-/* Modal de calendario en pantalla completa */
-.modal-fullscreen .modal-content {
-    border-radius: 0;
-    border: none;
-    height: 100vh;
-    /* Asegurar que el header del modal permanezca fijo */
-    overflow: hidden;
-    position: relative;
-}
-
-/* Header del modal completamente fijo */
-.modal-fullscreen .modal-header {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 10000 !important;
-    background: var(--primary-color) !important;
-    color: white !important;
-    border-bottom: none !important;
-    padding: 1rem 2rem !important;
-    /* Asegurar que esté por encima de todo */
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3) !important;
-}
-
-/* Estilos responsivos para el modal */
-@media (max-width: 768px) {
-    .modal-fullscreen .modal-header {
-        padding: 0.75rem 1rem !important;
-    }
-    
-    .modal-fullscreen .modal-body {
-        padding-top: 70px !important;
-    }
-    
-    .modal-fullscreen .calendar-fullscreen-container {
-        height: calc(100vh - 70px) !important;
-    }
-}
-
-@media (max-width: 576px) {
-    .modal-fullscreen .modal-header {
-        padding: 0.5rem 0.75rem !important;
-    }
-    
-    .modal-fullscreen .modal-body {
-        padding-top: 60px !important;
-    }
-    
-    .modal-fullscreen .calendar-fullscreen-container {
-        height: calc(100vh - 60px) !important;
-    }
-}
-
-.modal-fullscreen .modal-header {
-    background: var(--primary-color);
-    color: white;
-    border-bottom: none;
-    padding: 0.75rem 1.5rem;
-}
-
-.modal-fullscreen .modal-header .btn-close {
-    filter: invert(1);
-    opacity: 0.8;
-}
-
-.modal-fullscreen .modal-header .btn-close:hover {
-    opacity: 1;
-}
-
-/* Header del modal con navegación */
-.modal-header-nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.modal-header-left {
-    flex: 1;
-}
-
-.modal-header-center {
-    flex: 2;
-    display: flex;
-    justify-content: center;
-}
-
-.modal-header-right {
-    flex: 1;
-    display: flex;
-    justify-content: flex-end;
-}
-
-.modal-date-navigation {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    background: rgba(255, 255, 255, 0.15);
-    padding: 0.5rem 1rem;
-    border-radius: 12px;
-}
-
-.modal-nav-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 1.1rem;
-}
-
-.modal-nav-btn:hover {
-    background: rgba(255, 255, 255, 0.25);
-    border-color: white;
-    transform: scale(1.05);
-}
-
-.modal-current-date {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0 0.75rem;
-}
-
-.modal-date-day {
-    font-size: 2rem;
-    font-weight: 800;
-    line-height: 1;
-    color: white;
-}
-
-.modal-date-info {
-    display: flex;
-    flex-direction: column;
-}
-
-.modal-date-weekday {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    text-transform: capitalize;
-}
-
-.modal-date-month {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.7);
-    text-transform: capitalize;
-}
-
-.modal-today-btn {
-    background: white;
-    color: var(--primary-color);
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.modal-today-btn:hover {
-    background: var(--light-color);
-    transform: translateY(-1px);
-}
-
-/* Responsive para el header del modal */
-@media (max-width: 768px) {
-    .modal-header-nav {
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-    
-    .modal-header-left {
-        order: 1;
-        flex: 0 0 auto;
-    }
-    
-    .modal-header-right {
-        order: 2;
-        flex: 0 0 auto;
-    }
-    
-    .modal-header-center {
-        order: 3;
-        flex: 1 0 100%;
-    }
-    
-    .modal-date-navigation {
-        width: 100%;
-        justify-content: center;
-    }
-    
-    .modal-nav-btn {
-        width: 36px;
-        height: 36px;
-    }
-    
-    .modal-date-day {
-        font-size: 1.5rem;
-    }
-}
-
-@media (max-width: 576px) {
-    .modal-header-left .modal-title {
-        font-size: 0.9rem;
-    }
-    
-    .modal-date-day {
-        font-size: 1.25rem;
-    }
-    
-    .modal-date-weekday {
-        font-size: 0.75rem;
-    }
-    
-    .modal-date-month {
-        font-size: 0.65rem;
-    }
-    
-    .modal-today-btn {
-        padding: 0.4rem 0.75rem;
-        font-size: 0.8rem;
-    }
-}
-
-.modal-fullscreen .modal-body {
-    padding: 0;
-    height: 100vh; /* Altura completa */
-    overflow: hidden;
-    /* Asegurar que el sticky funcione correctamente */
-    position: relative;
-    /* Ajustar para el header fijo */
-    padding-top: 80px !important;
-}
-
 /* Contenedor del calendario en pantalla completa */
 .calendar-fullscreen-container {
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     width: 100%;
     /* Habilitar scroll vertical y horizontal independiente */
     overflow: auto;
-    background: var(--calendar-bg);
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     padding: 1rem;
     position: relative;
     /* Asegurar que el sticky funcione correctamente */
@@ -2075,15 +1828,10 @@
     -webkit-transform: translateZ(0);
     /* Crear un nuevo contexto de apilamiento */
     isolation: isolate;
-    /* Asegurar que el sticky funcione en el modal */
     will-change: scroll-position;
-    /* Forzar que el contexto de apilamiento sea correcto */
     z-index: 1;
-    /* Mejorar el comportamiento del scroll */
     scroll-behavior: smooth;
-    /* Asegurar que el scroll funcione en todos los navegadores */
     -webkit-overflow-scrolling: touch;
-    /* Personalizar scrollbars */
     scrollbar-width: thin;
     scrollbar-color: var(--primary-color) #f1f5f9;
 }
@@ -2302,8 +2050,6 @@
 }
 
 .calendar-fullscreen-container .time-slot {
-    width: 100px;
-    min-width: 100px;
     height: 80px;
     padding: 0.75rem;
     background: linear-gradient(135deg, #f8fafc, #e2e8f0);
@@ -2685,13 +2431,9 @@
 }
 
 /* Orientación landscape en móviles */
-@media (max-width: 768px) and (orientation: landscape) {
-    .calendar-header {
-        height: 60px;
-    }
-    
+@media (max-width: 1024px) and (orientation: landscape) {
     .calendar-main {
-        margin-top: 60px;
+        padding: 1rem;
     }
     
     .controls-top {
@@ -2775,13 +2517,9 @@
 }
 
 /* Orientación landscape en móviles */
-@media (max-width: 768px) and (orientation: landscape) {
-    .calendar-header {
-        height: 60px;
-    }
-    
+@media (max-width: 1024px) and (orientation: landscape) {
     .calendar-main {
-        margin-top: 60px;
+        padding: 1rem;
     }
     
     .controls-top {
@@ -2867,15 +2605,6 @@
         box-shadow: 0 0 0 0.2rem rgba(19, 58, 127, 0.25);
     }
     
-    /* Modal de calendario en móviles */
-    .modal-fullscreen .modal-header {
-        padding: 0.75rem 1rem;
-    }
-    
-    .modal-fullscreen .modal-header .modal-title {
-        font-size: 1.1rem;
-    }
-    
     .calendar-fullscreen-container {
         padding: 0.5rem;
     }
@@ -2936,18 +2665,7 @@
         margin: 0;
         text-align: center;
     }
-    
-    /* Botón del calendario en móviles */
-    .calendar-button-container {
-        padding: 2rem 1rem;
-        margin: 1rem 0;
-    }
-    
-    .calendar-modal-btn {
-        padding: 0.875rem 1.5rem;
-        font-size: 1rem;
-        width: 100%;
-    }
+
 }
 
 .mensaje.mostrar {
@@ -2978,6 +2696,182 @@
 
 .mensaje-info {
     background: linear-gradient(135deg, #1E5BC6, #133A7F);
+}
+
+/* =========================================================================
+   OVERRIDE AUTORITATIVO v4 — Responsividad + posicionamiento exacto
+   Este bloque va al final del <style> para ganar en la cascada.
+   Corrige: desfase de reservas (slot 80px en JS vs 60/50px en CSS),
+   espacios muertos (min-width:1200px), columnas no responsivas y header
+   de profesionales sin sticky vertical.
+   ========================================================================= */
+:root {
+    --cal-slot-h: 64px;   /* altura de 1 hora (constante en todos los breakpoints) */
+    --cal-time-w: 68px;   /* ancho de la columna de horas */
+    --cal-col-min: 200px; /* ancho mínimo de cada columna de profesional */
+}
+
+/* La app no debe forzar 100dvh dentro del <main> (que ya tiene padding-top) */
+.calendar-app {
+    min-height: auto !important;
+    padding-bottom: 0 !important;
+}
+
+/* Contenedor con scroll: alto adaptado a viewport menos header del sitio */
+.calendar-fullscreen-container {
+    height: calc(100dvh - 80px - 150px) !important; /* header sitio + header calendario + info */
+    min-height: 420px !important;
+    padding: 0 !important;
+    overflow: auto !important;
+}
+
+/* Grid: llena el ancho con pocas columnas, hace scroll con muchas. Sin 1200px.
+   width:max-content permite que crezca con muchos profesionales (scroll-x);
+   min-width:100% llena el contenedor cuando hay pocas columnas. */
+.calendar-fullscreen-container .calendar-grid {
+    width: max-content !important;
+    min-width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+}
+
+/* Filas: al menos el ancho del contenido (scroll) pero pueden estirarse al 100% */
+.calendar-fullscreen-container .calendar-header-row,
+.calendar-fullscreen-container .calendar-time-row {
+    display: flex !important;
+    width: 100% !important;
+    min-width: max-content !important;
+    flex-shrink: 0 !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+}
+
+/* Header de fila de profesionales: sticky vertical para no perder contexto */
+.calendar-fullscreen-container .calendar-header-row {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 30 !important;
+}
+
+/* Columna de horas (header y celdas): ancho fijo, mismo en header y filas */
+.calendar-fullscreen-container .time-header-fixed,
+.calendar-fullscreen-container .time-header,
+.calendar-fullscreen-container .time-slot {
+    flex: 0 0 var(--cal-time-w) !important;
+    width: var(--cal-time-w) !important;
+    min-width: var(--cal-time-w) !important;
+    max-width: var(--cal-time-w) !important;
+    height: var(--cal-slot-h) !important;
+    padding: 0.25rem !important;
+    font-size: 0.78rem !important;
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 25 !important;
+}
+/* La esquina (Hora) debe ir por encima de la columna de horas */
+.calendar-fullscreen-container .calendar-header-row .time-header-fixed,
+.calendar-fullscreen-container .calendar-header-row .time-header {
+    z-index: 35 !important;
+    top: 0 !important;
+    background: var(--primary-color) !important;
+    color: #fff !important;
+}
+
+/* Columnas de profesional: flex para llenar o hacer scroll, alto = slot */
+.calendar-fullscreen-container .professional-header,
+.calendar-fullscreen-container .professional-slot {
+    flex: 1 1 var(--cal-col-min) !important;
+    width: auto !important;
+    min-width: var(--cal-col-min) !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+}
+.calendar-fullscreen-container .professional-slot {
+    height: var(--cal-slot-h) !important;
+    min-height: var(--cal-slot-h) !important;
+    padding: 0 !important;
+    overflow: visible !important;
+}
+.calendar-fullscreen-container .professional-header {
+    height: auto !important;
+    min-height: var(--cal-slot-h) !important;
+    padding: 0.6rem 0.5rem !important;
+}
+
+/* Líneas guía internas a la mitad y 3/4 del slot, recalculadas con la var */
+.calendar-fullscreen-container .professional-slot::before { top: calc(var(--cal-slot-h) * 0.5) !important; }
+.calendar-fullscreen-container .professional-slot::after  { top: calc(var(--cal-slot-h) * 0.75) !important; }
+
+/* Bloques de reserva: el left/right/width los controla el JS (lanes). */
+.calendar-fullscreen-container .appointment-block {
+    position: absolute !important;
+    border-radius: 7px !important;
+    padding: 4px 7px !important;
+    min-height: 18px !important;
+    overflow: hidden !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.22) !important;
+    border: 1.5px solid rgba(255,255,255,0.25) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    z-index: 40 !important;
+}
+.calendar-fullscreen-container .appointment-block:hover {
+    transform: none !important;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35) !important;
+    z-index: 60 !important;
+    filter: brightness(1.05) !important;
+}
+.calendar-fullscreen-container .appointment-cliente-name {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+    margin-bottom: 1px !important;
+}
+.calendar-fullscreen-container .appointment-time-only {
+    font-size: 0.62rem !important;
+    font-weight: 500 !important;
+    line-height: 1.05 !important;
+    opacity: 0.95 !important;
+}
+/* La estrella de suscripción no debe tapar el texto en bloques angostos */
+.calendar-fullscreen-container .appointment-block[data-suscripcion="true"]::after {
+    top: 4px !important;
+    right: 5px !important;
+    transform: none !important;
+    font-size: 0.8rem !important;
+}
+
+/* Ajustes responsivos: solo cambian anchos, NUNCA la altura del slot */
+@media (max-width: 992px) {
+    :root { --cal-time-w: 60px; --cal-col-min: 175px; }
+    .calendar-fullscreen-container { height: calc(100dvh - 70px - 170px) !important; }
+}
+@media (max-width: 768px) {
+    :root { --cal-time-w: 54px; --cal-col-min: 155px; }
+    .calendar-fullscreen-container {
+        height: calc(100dvh - 60px - 175px) !important;
+        border-radius: 10px !important;
+    }
+    .calendar-fullscreen-container .professional-name { font-size: 0.8rem !important; }
+    .calendar-fullscreen-container .professional-business { font-size: 0.62rem !important; }
+    .calendar-fullscreen-container .professional-avatar { width: 38px !important; height: 38px !important; }
+}
+@media (max-width: 480px) {
+    :root { --cal-time-w: 46px; --cal-col-min: 130px; }
+    .calendar-fullscreen-container .time-header-fixed,
+    .calendar-fullscreen-container .time-header,
+    .calendar-fullscreen-container .time-slot { font-size: 0.66rem !important; }
+    .calendar-fullscreen-container .professional-header { padding: 0.45rem 0.3rem !important; }
+    .calendar-fullscreen-container .professional-avatar { width: 30px !important; height: 30px !important; border-width: 2px !important; }
+    .calendar-fullscreen-container .professional-name { font-size: 0.72rem !important; }
+    .calendar-fullscreen-container .appointment-cliente-name { font-size: 0.66rem !important; }
+    .calendar-fullscreen-container .appointment-time-only { font-size: 0.56rem !important; }
 }
 </style>
 {% endblock %}
@@ -3053,22 +2947,17 @@
                 <span class="legend-item"><span class="dot" style="background: linear-gradient(135deg, #4a5568, #2d3748);"></span> Atendida</span>
                 <span class="legend-item"><span class="dot" style="background: linear-gradient(135deg, #f687b3, #ed64a6);"></span> Inasistencia</span>
             </div>
+            <div class="info-card" id="infoCardFecha" style="background: linear-gradient(135deg, var(--primary-color), #1E5BC6); color: white;">
+                <i class="bi bi-calendar-event"></i>
+                <span><strong id="fechaDisplay">{{ fecha_actual|date:"l d \d\e F \d\e Y" }}</strong></span>
+            </div>
         </div>
 
-                <!-- Botón para abrir el calendario en modal -->
-                <div class="calendar-button-container">
-                    <button class="btn btn-primary btn-lg calendar-modal-btn" onclick="abrirCalendarioModal()">
-                        <i class="bi bi-calendar3 me-2"></i>
-                        Ver Calendario Completo
-                    </button>
-                    <p class="text-muted mt-3">
-                        Haz clic en el botón para ver el calendario de reservas en pantalla completa
-                    </p>
-                    <div class="professionals-info mt-3">
-                        <small class="text-info">
-                            <i class="bi bi-people me-1"></i>
-                            <span id="professionalsCount">Cargando...</span> profesionales disponibles
-                        </small>
+                <!-- Contenedor del calendario en pantalla completa -->
+                <div class="calendar-fullscreen-container" id="calendarFullContainer">
+                    <!-- Grid del calendario con header y filas de tiempo -->
+                    <div class="calendar-grid" id="calendarGrid">
+                        <!-- El contenido se generará dinámicamente -->
                     </div>
                 </div>
 
@@ -3298,48 +3187,6 @@
     </div>
 </div>
 
-<!-- Modal de calendario en pantalla completa -->
-<div class="modal fade" id="modalCalendarioCompleto" tabindex="-1">
-    <div class="modal-dialog modal-fullscreen">
-        <div class="modal-content">
-            <div class="modal-header modal-header-nav">
-                <div class="modal-header-left">
-                    <h5 class="modal-title mb-0">{{ negocio.nombre }}</h5>
-                </div>
-                <div class="modal-header-center">
-                    <div class="modal-date-navigation">
-                        <button type="button" class="modal-nav-btn" onclick="anteriorDiaModal()" title="Día anterior">
-                            <i class="bi bi-chevron-left"></i>
-                        </button>
-                        <div class="modal-current-date" id="modalFechaActual">
-                            <span class="modal-date-day" id="modalFechaDia">{{ fecha_actual|date:"d" }}</span>
-                            <div class="modal-date-info">
-                                <span class="modal-date-weekday" id="modalFechaDiaSemana">{{ fecha_actual|date:"l" }}</span>
-                                <span class="modal-date-month" id="modalFechaMes">{{ fecha_actual|date:"F Y" }}</span>
-                            </div>
-                        </div>
-                        <button type="button" class="modal-nav-btn" onclick="siguienteDiaModal()" title="Día siguiente">
-                            <i class="bi bi-chevron-right"></i>
-                        </button>
-                        <button type="button" class="modal-today-btn" onclick="irHoyModal()">Hoy</button>
-                    </div>
-                </div>
-                <div class="modal-header-right">
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-            </div>
-            <div class="modal-body p-0">
-                <!-- Contenedor del calendario en pantalla completa -->
-                <div class="calendar-fullscreen-container">
-                    <!-- Grid del calendario con header y filas de tiempo -->
-                    <div class="calendar-grid" id="calendarGrid">
-                        <!-- El contenido se generará dinámicamente -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -3420,7 +3267,7 @@ async function cargarProfesionalesSinCalendario() {
 
 // Función para llenar el dropdown de profesionales en el modal
 function llenarDropdownProfesionales() {
-    const selectProfesional = document.querySelector('select[name="profesional"]');
+    const selectProfesional = document.querySelector('#modalNuevaReserva select[name="profesional"]');
     if (selectProfesional && profesionales.length > 0) {
         // Limpiar opciones existentes
         selectProfesional.innerHTML = '<option value="">Seleccionar profesional</option>';
@@ -3552,6 +3399,30 @@ function obtenerColorServicio(tipoServicio) {
     return colores.default;
 }
 
+// Altura real de un slot de 1 hora (lee la variable CSS --cal-slot-h).
+// Así el posicionamiento de reservas coincide exactamente con la grilla
+// en cualquier tamaño de pantalla (corrige el desfase).
+function obtenerAlturaSlot() {
+    // Preferir medir un slot real del DOM (más fiable que la variable)
+    const slot = document.querySelector('.professional-slot');
+    if (slot) {
+        const h = slot.getBoundingClientRect().height;
+        if (h && h > 10) return h;
+    }
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--cal-slot-h');
+    const px = parseFloat(raw);
+    return (px && px > 10) ? px : 64;
+}
+
+// Convierte "HH:MM[:SS]" en minutos desde 00:00
+function horaAMinutos(hora) {
+    if (!hora) return 0;
+    const partes = String(hora).split(':');
+    const h = parseInt(partes[0], 10) || 0;
+    const m = parseInt(partes[1], 10) || 0;
+    return h * 60 + m;
+}
+
 // Generar el calendario
 function generarCalendario() {
     const calendarGrid = document.getElementById('calendarGrid');
@@ -3582,12 +3453,12 @@ function generarCalendario() {
         horas.push(i);
     }
     
-    // Calcular altura total del calendario
-    const alturaTotal = horas.length * 80; // 80px por hora = 1920px total
-    calendarGrid.style.height = `${alturaTotal}px`;
-    calendarGrid.style.minHeight = `${alturaTotal}px`;
-    
-    console.log(`Calendario generado: ${horas.length} horas, altura total: ${alturaTotal}px, ${profesionales.length} profesionales`);
+    // La altura de cada slot la define el CSS (var --cal-slot-h). No forzar px aquí
+    // para evitar el desfase entre JS y CSS responsivo.
+    calendarGrid.style.height = '';
+    calendarGrid.style.minHeight = '';
+
+    console.log(`Calendario generado: ${horas.length} horas, slot=${obtenerAlturaSlot()}px, ${profesionales.length} profesionales`);
     
     let html = `
         <div class="calendar-header-row">
@@ -3821,7 +3692,7 @@ function abrirModalReservaProvisional(hora, profesionalId) {
     }, 100);
     
     // Verificar si estamos dentro de un modal (el calendario completo)
-    const modalCalendario = document.getElementById('modalCalendarioCompleto');
+    // (modal eliminado)
     const modalCalendarioInstance = modalCalendario ? bootstrap.Modal.getInstance(modalCalendario) : null;
     
     // Si el calendario está en un modal, cerrarlo primero
@@ -3861,184 +3732,135 @@ function abrirModalReservaProvisional(hora, profesionalId) {
 function mostrarReservasEnCalendario() {
     console.log('=== MOSTRANDO RESERVAS EN CALENDARIO ===');
     console.log('Total de reservas a mostrar:', reservas.length);
-    
+
     // Limpiar reservas existentes
-    const reservasExistentes = document.querySelectorAll('.appointment-block');
-    console.log('Reservas existentes encontradas:', reservasExistentes.length);
-    reservasExistentes.forEach(el => el.remove());
-    
+    document.querySelectorAll('.appointment-block').forEach(el => el.remove());
+
     // Asegurar que los listeners estén agregados después de limpiar
     agregarListenersSlots();
-    
-    if (reservas.length === 0) {
+
+    actualizarContadorReservas();
+
+    if (!reservas || reservas.length === 0) {
         console.log('ℹ️ No hay reservas para mostrar en el calendario');
         return;
     }
-    
-    console.log('📋 Procesando reservas:', reservas);
-    
-    let reservasExitosas = 0;
-    let reservasFallidas = 0;
-    
-    // Verificar que el calendario esté generado
+
     const calendarGrid = document.getElementById('calendarGrid');
     if (!calendarGrid) {
         console.error('❌ No se encontró el calendario (calendarGrid)');
         return;
     }
-    
-    // Verificar que haya slots disponibles
-    const slotsDisponibles = document.querySelectorAll('.professional-slot');
-    console.log(`🔍 Slots disponibles encontrados: ${slotsDisponibles.length}`);
-    
-    if (slotsDisponibles.length === 0) {
+    if (document.querySelectorAll('.professional-slot').length === 0) {
         console.error('❌ No hay slots de profesionales disponibles');
         return;
     }
-    
-    reservas.forEach((reserva, index) => {
+
+    const SLOT_H = obtenerAlturaSlot(); // px por hora (coincide con la grilla)
+    const PX_POR_MIN = SLOT_H / 60;
+
+    // 1) Normalizar reservas con minutos de inicio/fin
+    const items = [];
+    reservas.forEach(reserva => {
+        const ini = horaAMinutos(reserva.hora_inicio);
+        let fin = horaAMinutos(reserva.hora_fin);
+        if (!fin || fin <= ini) fin = ini + 30; // fallback: 30 min mínimo
+        items.push({ reserva, ini, fin, horaInicioNum: Math.floor(ini / 60) });
+    });
+
+    // 2) Agrupar por profesional para calcular solapamientos (lanes)
+    const porProfesional = {};
+    items.forEach(it => {
+        const pid = String(it.reserva.profesional_id);
+        (porProfesional[pid] = porProfesional[pid] || []).push(it);
+    });
+
+    // Para cada profesional, asignar columna (lane) a reservas que se solapan
+    Object.values(porProfesional).forEach(lista => {
+        lista.sort((a, b) => a.ini - b.ini || a.fin - b.fin);
+        // Algoritmo de "clusters": grupos de reservas que se solapan en cadena
+        let cluster = [];
+        let clusterFin = -1;
+        const cerrarCluster = () => {
+            if (cluster.length === 0) return;
+            // Asignar lane mínima disponible a cada item del cluster
+            const lanesFin = []; // fin de la última reserva en cada lane
+            cluster.forEach(it => {
+                let lane = 0;
+                while (lane < lanesFin.length && lanesFin[lane] > it.ini) lane++;
+                lanesFin[lane] = it.fin;
+                it.lane = lane;
+            });
+            const totalLanes = lanesFin.length;
+            cluster.forEach(it => { it.totalLanes = totalLanes; });
+            cluster = [];
+        };
+        lista.forEach(it => {
+            if (cluster.length > 0 && it.ini >= clusterFin) cerrarCluster();
+            cluster.push(it);
+            clusterFin = Math.max(clusterFin, it.fin);
+        });
+        cerrarCluster();
+    });
+
+    let exitosas = 0, fallidas = 0;
+    const formatHora = (h) => String(h || '').substring(0, 5);
+
+    items.forEach(it => {
         try {
-            console.log(`\n🔄 Procesando reserva ${index + 1}/${reservas.length}:`, reserva);
-            
-            // Parsear horas de inicio y fin
-            const horaInicio = reserva.hora_inicio;
-            const horaFin = reserva.hora_fin;
-            
-            console.log(`⏰ Hora inicio: ${horaInicio}, Hora fin: ${horaFin}`);
-            
-            // Calcular duración en minutos
-            const duracionMinutos = calcularDuracionServicio(horaInicio, horaFin);
-            console.log(`⏱️ Duración calculada: ${duracionMinutos} minutos`);
-            
-            // Calcular posición y altura basada en la duración real
-            const horaInicioObj = new Date(`2000-01-01 ${horaInicio}`);
-            const horaInicioNum = horaInicioObj.getHours();
-            console.log(`🕐 Hora numérica: ${horaInicioNum}`);
-            
-            // Buscar el slot correspondiente al inicio del servicio
-            const selector = `[data-hora="${horaInicioNum}"][data-profesional="${reserva.profesional_id}"]`;
-            console.log(`🔍 Selector CSS: ${selector}`);
-            
-            const slot = document.querySelector(selector);
-            console.log(`📍 Slot encontrado:`, slot);
-            
-            if (slot) {
-                // Crear bloque de reserva
-                const appointmentBlock = document.createElement('div');
-                appointmentBlock.className = 'appointment-block';
-                appointmentBlock.setAttribute('data-status', reserva.estado || 'confirmed');
-                appointmentBlock.setAttribute('data-reserva-id', reserva.id);
-                appointmentBlock.setAttribute('data-duracion', duracionMinutos);
-                appointmentBlock.setAttribute('data-service', (reserva.servicio || '').toLowerCase());
-                // Agregar atributo de suscripción
-                appointmentBlock.setAttribute('data-suscripcion', reserva.tiene_suscripcion ? 'true' : 'false');
-                
-                // Detectar si la reserva se extiende entre horas
-                const horaFinNum = new Date(`2000-01-01 ${horaFin}`).getHours();
-                if (horaFinNum > horaInicioNum) {
-                    appointmentBlock.setAttribute('data-extends-hours', 'true');
-                    console.log(`🔗 Reserva se extiende entre horas: ${horaInicioNum} → ${horaFinNum}`);
-                }
-                
-                // Marcar reservas largas (más de 2 horas)
-                if (duracionMinutos > 120) {
-                    appointmentBlock.setAttribute('data-duration', 'long');
-                    console.log(`⏰ Reserva larga detectada: ${duracionMinutos} minutos`);
-                }
-                
-                // Sistema simplificado: no se aplican colores por tipo de servicio
-                // Solo se usan 3 colores base (verde, gris, rojo) + borde dorado para suscripciones
-                
-                // Calcular altura basada en la duración real
-                // 80px = 1 hora, entonces: altura = (duracion / 60) * 80
-                const alturaPx = Math.max((duracionMinutos / 60) * 80, 35); // Mínimo 35px
-                appointmentBlock.style.height = `${alturaPx}px`;
-                
-                // Calcular posición top basada en los minutos exactos
-                const minutosEnSlot = horaInicioObj.getMinutes();
-                const topOffset = (minutosEnSlot / 60) * 80; // 80px es la altura del slot
-                appointmentBlock.style.top = `${topOffset}px`;
-                
-                // NO limitar la altura - dejar que se extienda a slots siguientes
-                // El overflow:visible en el CSS permite esto
-                
-                // Formatear la hora de manera más elegante
-                const formatHora = (hora) => {
-                    return hora.substring(0, 5); // Solo HH:MM
-                };
-                
-                // Mostrar nombre del cliente y rango de horas
-                const nombreCliente = reserva.cliente || 'Cliente';
-                const nombreServicio = reserva.servicio || 'Servicio';
-                
-                // Debug: verificar que el nombre del cliente esté presente
-                console.log(`👤 Cliente de reserva ${reserva.id}:`, nombreCliente);
-                
-                // Si la reserva es muy pequeña (menos de 40px), solo mostrar el nombre
-                // Si es más grande, mostrar nombre y hora
-                if (alturaPx < 40) {
-                    appointmentBlock.innerHTML = `
-                        <span class="appointment-cliente-name">${nombreCliente}</span>
-                    `;
-                } else {
-                    appointmentBlock.innerHTML = `
-                        <span class="appointment-cliente-name">${nombreCliente}</span>
-                        <span class="appointment-time-only">${formatHora(horaInicio)} - ${formatHora(horaFin)}</span>
-                    `;
-                }
-                
-                // Tooltip con información completa
-                appointmentBlock.title = `${nombreCliente} - ${nombreServicio} (${duracionMinutos} min)`;
-                
-                console.log(`📐 Reserva ${reserva.id}: ${duracionMinutos}min = ${alturaPx}px de altura`);
-                
-                // Agregar al slot
-                slot.appendChild(appointmentBlock);
-                
-                // Agregar funcionalidad de drag and drop
-                agregarDragAndDrop(appointmentBlock, reserva);
-                
-                reservasExitosas++;
-                
-                console.log(`✅ Reserva ${reserva.id} posicionada exitosamente:`);
-                console.log(`   - Hora: ${horaInicio}-${horaFin}`);
-                console.log(`   - Duración: ${duracionMinutos}min`);
-                console.log(`   - Altura: ${alturaPx}px`);
-                console.log(`   - Top offset: ${topOffset}px`);
-                
-                // Verificar que se agregó correctamente
-                const reservaAgregada = slot.querySelector('.appointment-block');
-                console.log(`🔍 Reserva agregada al DOM:`, reservaAgregada);
-                
+            const { reserva, ini, fin } = it;
+            const slot = document.querySelector(
+                `[data-hora="${it.horaInicioNum}"][data-profesional="${reserva.profesional_id}"]`
+            );
+            if (!slot) { fallidas++; console.warn(`❌ Sin slot para reserva ${reserva.id} (hora ${it.horaInicioNum}, prof ${reserva.profesional_id})`); return; }
+
+            const duracionMin = fin - ini;
+            const block = document.createElement('div');
+            block.className = 'appointment-block';
+            block.setAttribute('data-status', reserva.estado || 'confirmed');
+            block.setAttribute('data-reserva-id', reserva.id);
+            block.setAttribute('data-duracion', duracionMin);
+            block.setAttribute('data-service', (reserva.servicio || '').toLowerCase());
+            block.setAttribute('data-suscripcion', reserva.tiene_suscripcion ? 'true' : 'false');
+            if (duracionMin > 120) block.setAttribute('data-duration', 'long');
+
+            // Posición vertical exacta: top = minutos dentro de la hora; alto = duración real
+            const minutosEnSlot = ini - (it.horaInicioNum * 60);
+            const topOffset = minutosEnSlot * PX_POR_MIN;
+            const alturaPx = Math.max(duracionMin * PX_POR_MIN, 16);
+            block.style.top = `${topOffset}px`;
+            block.style.height = `${alturaPx}px`;
+
+            // Posición horizontal: lanes para reservas solapadas
+            const totalLanes = it.totalLanes || 1;
+            const lane = it.lane || 0;
+            const gap = 3; // px entre lanes y bordes
+            const anchoPct = 100 / totalLanes;
+            block.style.left = `calc(${lane * anchoPct}% + ${gap}px)`;
+            block.style.right = 'auto';
+            block.style.width = `calc(${anchoPct}% - ${gap * 1.5}px)`;
+
+            const nombreCliente = reserva.cliente || 'Cliente';
+            const nombreServicio = reserva.servicio || 'Servicio';
+            if (alturaPx < 34) {
+                block.innerHTML = `<span class="appointment-cliente-name">${nombreCliente}</span>`;
             } else {
-                reservasFallidas++;
-                console.warn(`❌ No se encontró slot para la reserva ${reserva.id}:`);
-                console.warn(`   - Hora: ${horaInicio} (${horaInicioNum})`);
-                console.warn(`   - Profesional ID: ${reserva.profesional_id}`);
-                console.warn(`   - Selector usado: ${selector}`);
-                
-                // Debug: mostrar todos los slots disponibles
-                console.log(`🔍 Slots disponibles (${slotsDisponibles.length}):`);
-                slotsDisponibles.forEach((slot, i) => {
-                    console.log(`   ${i}: data-hora="${slot.dataset.hora}", data-profesional="${slot.dataset.profesional}"`);
-                });
+                block.innerHTML = `
+                    <span class="appointment-cliente-name">${nombreCliente}</span>
+                    <span class="appointment-time-only">${formatHora(reserva.hora_inicio)} - ${formatHora(reserva.hora_fin)}</span>`;
             }
+            block.title = `${nombreCliente} · ${nombreServicio} (${formatHora(reserva.hora_inicio)}-${formatHora(reserva.hora_fin)}, ${duracionMin} min)`;
+
+            slot.appendChild(block);
+            agregarDragAndDrop(block, reserva);
+            exitosas++;
         } catch (error) {
-            reservasFallidas++;
-            console.error(`❌ Error procesando reserva ${reserva.id}:`, error);
+            fallidas++;
+            console.error(`❌ Error procesando reserva ${it.reserva && it.reserva.id}:`, error);
         }
     });
-    
-    console.log(`\n=== RESUMEN ===`);
-    console.log(`✅ Reservas exitosas: ${reservasExitosas}`);
-    console.log(`❌ Reservas fallidas: ${reservasFallidas}`);
-    console.log(`📊 Total procesadas: ${reservas.length}`);
-    
-    // Verificar que las reservas estén visibles
-    const reservasFinales = document.querySelectorAll('.appointment-block');
-    console.log(`🔍 Reservas finales en el DOM: ${reservasFinales.length}`);
-    
-    // Actualizar contador de reservas en la info card
+
+    console.log(`=== RESUMEN === ✅ ${exitosas}  ❌ ${fallidas}  📊 ${items.length}`);
     actualizarContadorReservas();
 }
 
@@ -4368,6 +4190,17 @@ function actualizarFechaEnHeader() {
     
     // También actualizar el contador de reservas
     actualizarContadorReservas();
+    
+    // Actualizar la fecha en el info-card
+    const fechaDisplay = document.getElementById('fechaDisplay');
+    if (fechaDisplay) {
+        fechaDisplay.textContent = fecha.toLocaleDateString('es-ES', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    }
 }
 
 // Actualizar contador de reservas del día
@@ -4606,172 +4439,7 @@ function nuevaReserva() {
     }
 }
 
-// Función para abrir el modal del calendario en pantalla completa
-function abrirCalendarioModal() {
-    const modal = document.getElementById('modalCalendarioCompleto');
-    if (modal) {
-        const modalInstance = new bootstrap.Modal(modal);
-        modalInstance.show();
-        
-        // Actualizar la fecha del modal
-        actualizarFechaModal();
-        
-        // Generar el calendario después de que el modal esté visible
-        setTimeout(() => {
-            generarCalendario();
-            // Asegurar que el header del modal permanezca fijo
-            fijarHeaderModal();
-        }, 300);
-    }
-}
-
-// Funciones de navegación para el modal
-function anteriorDiaModal() {
-    const fecha = new Date(fechaSeleccionada);
-    fecha.setDate(fecha.getDate() - 1);
-    fechaSeleccionada = fecha.toISOString().split('T')[0];
-    actualizarFechaModal();
-    actualizarFechaEnHeader();
-    cargarReservasYActualizarModal();
-}
-
-function siguienteDiaModal() {
-    const fecha = new Date(fechaSeleccionada);
-    fecha.setDate(fecha.getDate() + 1);
-    fechaSeleccionada = fecha.toISOString().split('T')[0];
-    actualizarFechaModal();
-    actualizarFechaEnHeader();
-    cargarReservasYActualizarModal();
-}
-
-function irHoyModal() {
-    const hoy = new Date();
-    fechaSeleccionada = hoy.toISOString().split('T')[0];
-    actualizarFechaModal();
-    actualizarFechaEnHeader();
-    cargarReservasYActualizarModal();
-}
-
-// Actualizar la fecha mostrada en el modal
-function actualizarFechaModal() {
-    const fecha = new Date(fechaSeleccionada + 'T12:00:00');
-    
-    const modalFechaDia = document.getElementById('modalFechaDia');
-    const modalFechaDiaSemana = document.getElementById('modalFechaDiaSemana');
-    const modalFechaMes = document.getElementById('modalFechaMes');
-    
-    if (modalFechaDia) {
-        modalFechaDia.textContent = fecha.getDate();
-    }
-    if (modalFechaDiaSemana) {
-        modalFechaDiaSemana.textContent = fecha.toLocaleDateString('es-ES', {
-            weekday: 'long'
-        });
-    }
-    if (modalFechaMes) {
-        modalFechaMes.textContent = fecha.toLocaleDateString('es-ES', {
-            month: 'long',
-            year: 'numeric'
-        });
-    }
-}
-
-// Cargar reservas y actualizar el modal
-async function cargarReservasYActualizarModal() {
-    try {
-        // Mostrar loading en el grid
-        const calendarGrid = document.getElementById('calendarGrid');
-        if (calendarGrid) {
-            calendarGrid.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-3">Cargando reservas...</p></div>';
-        }
-        
-        // Cargar nuevas reservas
-        await cargarReservas();
-        
-        // Regenerar el calendario con las nuevas reservas
-        setTimeout(() => {
-            generarCalendario();
-        }, 300);
-    } catch (error) {
-        console.error('Error al cargar reservas:', error);
-    }
-}
-
-// Función para asegurar que el header del modal permanezca fijo
-function fijarHeaderModal() {
-    const modalHeader = document.querySelector('.modal-fullscreen .modal-header');
-    const calendarContainer = document.querySelector('.modal-fullscreen .calendar-fullscreen-container');
-    
-    if (modalHeader && calendarContainer) {
-        // Asegurar que el header del modal tenga position: fixed
-        modalHeader.style.position = 'fixed';
-        modalHeader.style.top = '0';
-        modalHeader.style.left = '0';
-        modalHeader.style.right = '0';
-        modalHeader.style.zIndex = '10000';
-        
-        // Ajustar el contenedor del calendario para el header fijo
-        calendarContainer.style.marginTop = '0';
-        calendarContainer.style.paddingTop = '0';
-        
-        // Mejorar la experiencia del scroll
-        mejorarScrollCalendario(calendarContainer);
-    }
-}
-
-// Función para mejorar la experiencia del scroll en el calendario
-function mejorarScrollCalendario(container) {
-    if (!container) return;
-    
-    // Habilitar scroll suave
-    container.style.scrollBehavior = 'smooth';
-    
-    // Mejorar scroll en dispositivos táctiles
-    if ('ontouchstart' in window) {
-        container.style.webkitOverflowScrolling = 'touch';
-    }
-    
-    // Agregar indicadores visuales de scroll
-    container.addEventListener('scroll', function() {
-        const scrollLeft = this.scrollLeft;
-        const scrollTop = this.scrollTop;
-        const maxScrollLeft = this.scrollWidth - this.clientWidth;
-        const maxScrollTop = this.scrollHeight - this.clientHeight;
-        
-        // Agregar clases CSS para indicar la dirección del scroll
-        this.classList.toggle('scrolled-right', scrollLeft > 0);
-        this.classList.toggle('scrolled-left', scrollLeft < maxScrollLeft);
-        this.classList.toggle('scrolled-down', scrollTop > 0);
-        this.classList.toggle('scrolled-up', scrollTop < maxScrollTop);
-    });
-    
-    // Agregar navegación por teclado
-    container.addEventListener('keydown', function(e) {
-        const scrollAmount = 100;
-        
-        switch(e.key) {
-            case 'ArrowLeft':
-                this.scrollLeft -= scrollAmount;
-                e.preventDefault();
-                break;
-            case 'ArrowRight':
-                this.scrollLeft += scrollAmount;
-                e.preventDefault();
-                break;
-            case 'ArrowUp':
-                this.scrollTop -= scrollAmount;
-                e.preventDefault();
-                break;
-            case 'ArrowDown':
-                this.scrollTop += scrollAmount;
-                e.preventDefault();
-                break;
-        }
-    });
-    
-    // Hacer el contenedor focusable para navegación por teclado
-    container.setAttribute('tabindex', '0');
-}
+// (eliminado: modal navigación y mejora scroll — calendario ahora directo en página)
 
 // Función para crear una nueva reserva
 async function crearNuevaReserva(formData) {
@@ -5179,7 +4847,7 @@ function mostrarDetallesReserva(reserva) {
         // Cerrar cualquier instancia previa del modal de detalles
         const existingModal = bootstrap.Modal.getInstance(modalElement);
         if (existingModal) {
-            existingModal.dispose();
+            existingModal.hide();
         }
         
         // Remover clases que puedan bloquear el body
@@ -5478,8 +5146,8 @@ document.addEventListener('DOMContentLoaded', function() {
     fechaSeleccionada = '{{ fecha_actual|date:"Y-m-d" }}';
     actualizarFechaEnHeader();
     
-    // Solo cargar profesionales, no generar calendario automáticamente
-    cargarProfesionalesSinCalendario();
+    // Cargar profesionales y generar calendario automáticamente
+    cargarProfesionales();
     
     // Agregar listeners de slots usando delegación de eventos
     // Esto asegura que funcione incluso cuando se modifica el DOM dinámicamente

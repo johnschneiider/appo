@@ -12,6 +12,9 @@ class Lead(models.Model):
     tiene_web = models.BooleanField(default=False)
     direccion = models.TextField(null=True, blank=True)
     notas = models.TextField(null=True, blank=True)
+    no_contactar = models.BooleanField(default=False)
+    motivo_no_contactar = models.TextField(null=True, blank=True)
+    fecha_no_contactar = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         managed = True
@@ -90,6 +93,10 @@ class LeadConversacion(models.Model):
         ('followup_48h', 'Follow‑up 48h'),
         ('no_respondio', 'No respondió'),
         ('convertido', 'Convertido'),
+        ('rechazo_permanente', 'Rechazo permanente'),
+        ('no_contactar', 'No contactar'),
+        ('cliente_appo', 'Cliente Appo'),
+        ('rechazo_temporal', 'Rechazo temporal'),
     ])
     followup_enviado = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

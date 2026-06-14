@@ -1,22 +1,84 @@
 {% extends 'base.html' %}
-{% block title %}Política de Tratamiento de Datos{% endblock %}
+{% block title %}Política de Tratamiento de Datos Personales — Appo{% endblock %}
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card shadow">
-                <div class="card-body">
-                    <h2 class="fw-bold mb-4">Política de Tratamiento de Datos</h2>
-                    <p class="mb-4">
-                        Esta es una política de ejemplo. Aquí se describirá cómo Appo recopila, utiliza y protege tus datos personales conforme a la legislación vigente. Al aceptar, autorizas el tratamiento de tus datos para la gestión de reservas, notificaciones y comunicaciones comerciales.
-                    </p>
-                    <p class="mb-4">
-                        Puedes solicitar la eliminación de tus datos en cualquier momento desde la sección de ajustes de tu cuenta.
-                    </p>
-                    <button class="btn btn-primary" style="color:#FFFFFF !important;" onclick="window.history.back()">Regresar</button>
+        <div class="col-lg-9">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4 p-md-5">
+                    <h1 class="fw-bold mb-4" style="color: #133A7F;">Política de Tratamiento de Datos Personales</h1>
+                    <p class="text-muted mb-4 small">Última actualización: 21 de abril de 2026</p>
+
+                    <section class="mb-5">
+                        <h4 class="fw-bold">1. Identificación del Responsable</h4>
+                        <p>
+                            <strong>APPO</strong> (en adelante "La Plataforma"), operada bajo la visión de ecosistema digital de John, con domicilio en Bogotá, Colombia, es responsable del tratamiento de los datos personales recolectados a través de sus portales <code>appo.com.co</code> y aplicaciones relacionadas.
+                        </p>
+                    </section>
+
+                    <section class="mb-5">
+                        <h4 class="fw-bold">2. Marco Legal</h4>
+                        <p>
+                            Esta política se rige por la <strong>Ley 1581 de 2012</strong>, el Decreto 1377 de 2013 y demás normas que las modifiquen o adicionen en Colombia, garantizando el derecho constitucional de Habeas Data.
+                        </p>
+                    </section>
+
+                    <section class="mb-5">
+                        <h4 class="fw-bold">3. Finalidades del Tratamiento</h4>
+                        <p>Los datos recolectados (nombres, teléfonos, correos electrónicos, datos de agenda y preferencias de servicios) serán utilizados para:</p>
+                        <ul>
+                            <li>Gestionar la creación y administración de cuentas de Negocios, Profesionales y Clientes.</li>
+                            <li>Facilitar el agendamiento de citas y servicios de forma autónoma.</li>
+                            <li>Enviar notificaciones de confirmación, recordatorios de citas y alertas del sistema.</li>
+                            <li>Gestionar la facturación y el acceso a los planes de suscripción (Pro y Esencial).</li>
+                            <li>Realizar análisis estadísticos y métricas de negocio para mejorar la eficiencia del ecosistema.</li>
+                            <li>Fines de marketing, promociones y fidelización, siempre que el usuario no manifieste lo contrario.</li>
+                        </ul>
+                    </section>
+
+                    <section class="mb-5">
+                        <h4 class="fw-bold">4. Derechos de los Titulares</h4>
+                        <p>Como titular de los datos, tienes derecho a:</p>
+                        <ol>
+                            <li>Conocer, actualizar y rectificar tus datos personales.</li>
+                            <li>Solicitar prueba de la autorización otorgada.</li>
+                            <li>Ser informado respecto del uso que se le ha dado a tus datos.</li>
+                            <li>Revocar la autorización o solicitar la supresión del dato cuando no se respeten los principios, derechos y garantías constitucionales y legales.</li>
+                            <li>Acceder en forma gratuita a tus datos personales.</li>
+                        </ol>
+                    </section>
+
+                    <section class="mb-5">
+                        <h4 class="fw-bold">5. Protección de Datos de Clientes de los Negocios</h4>
+                        <p>
+                            Appo actúa como <strong>Encargado del Tratamiento</strong> respecto a los datos de los clientes finales que los Negocios (barberías/salones) ingresan en la agenda. El Negocio, como Responsable, garantiza contar con la autorización de sus clientes para el uso de la plataforma Appo como herramienta de gestión.
+                        </p>
+                    </section>
+
+                    <section class="mb-5">
+                        <h4 class="fw-bold">6. Procedimiento para el ejercicio de derechos</h4>
+                        <p>
+                            Puedes ejercer tus derechos a través del módulo de <strong>Tickets de Soporte</strong> dentro de tu dashboard o enviando una comunicación al correo electrónico registrado en tu perfil. Las solicitudes serán atendidas en un término máximo de quince (15) días hábiles.
+                        </p>
+                    </section>
+
+                    <hr class="my-5">
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <p class="mb-0 text-muted small">Al usar Appo, aceptas estos términos conforme a la Ley 1581.</p>
+                        <button class="btn btn-primary px-4 py-2 fw-bold" style="background-color: #133A7F; border: none; border-radius: 10px;" onclick="window.history.back()">Entendido</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %} 
+
+<style>
+    body { background-color: #f8fafc; }
+    h4 { color: #0d1b2a; margin-top: 1.5rem; }
+    ul, ol { color: #475569; line-height: 1.7; }
+    p { color: #475569; line-height: 1.6; }
+</style>
+{% endblock %}
+ 

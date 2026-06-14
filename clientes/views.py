@@ -2171,3 +2171,27 @@ def reserva_exitosa(request, reserva_id):
         logger.error(f"Error en reserva_exitosa: {str(e)}")
         messages.error(request, 'Error al mostrar los detalles de la reserva.')
         return redirect('clientes:mis_reservas')
+# ── Google Maps Geocoding Proxy (seguridad: API key nunca sale al frontend) ──
+@require_GET
+def geocode_proxy(request):
+    """Proxy seguro para Google Geocoding API — la API key se mantiene server-side"""
+    lat = request.GET.get('lat')
+    lng = request.GET.get('lng')
+    if not lat or not lng:
+        return JsonResponse({'error': 'lat y lng requeridos'}, status=400)
+    
+    from urllib.request import urlopen
+    from urllib.parse import urlencode
+    import json as _json
+    try:
+        params = urlencode({
+            'latlng': f'{lat},{lng}',
+            'key': settings.GOOGLE_MAPS_API_KEY,
+            'language': 'es',
+        })
+        url = f'https://maps.googleapis.com/maps/api/geocode/json?{params}'
+        with urlopen(url, timeout=5) as resp:
+            data = _json.loads(resp.read().decode())
+        return JsonResponse(data, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

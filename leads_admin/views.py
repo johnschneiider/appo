@@ -12,9 +12,17 @@ from .models import Lead, ChatWhatsApp, MensajeWhatsApp
 logger = logging.getLogger(__name__)
 
 # Credenciales internas de Owen para la API (nuevo microservicio whatsapp-web.js)
-EVOLUTION_API_URL = "http://localhost:8081"
+WHATSAPP_SERVICE_URL = "http://localhost:8081"
 API_KEY = ""  # No se requiere API key en el nuevo servicio
 INSTANCE_NAME = "APPO_CRM"
+
+CAPTION_PLANES = (
+    "Estos son los planes de Appo 🚀\n\n"
+    "✅ Capa Gratuita: para siempre, sin tarjeta, sin límite\n"
+    "✅ Plan Pro: $49.000/barbero/mes, 30 días gratis\n\n"
+    "Cancelás cuando quieras · appo.com.co"
+)
+IMAGEN_PLANES_URL = "https://appo.com.co/media/galeria_negocio/planes-appo.png"
 
 def enviar_whatsapp(telefono: str, mensaje: str, jid_override: str = None) -> bool:
     """Envía un mensaje de WhatsApp usando Evolution API.
@@ -30,8 +38,8 @@ def enviar_whatsapp(telefono: str, mensaje: str, jid_override: str = None) -> bo
     es_jid_real = False
     es_jid_lid = False
     
-    # Si jid_override es un JID real (@s.whatsapp.net), usarlo directamente
-    if jid_override and '@s.whatsapp.net' in jid_override:
+    # Si jid_override es un JID real (@s.whatsapp.net o @c.us), usarlo directamente
+    if jid_override and ('@s.whatsapp.net' in jid_override or '@c.us' in jid_override):
         numero = jid_override  # Usar JID completo
         es_jid_real = True
         logger.info(f'[ENVIAR_WA] Usando JID real de jid_override: {numero}')
@@ -104,7 +112,7 @@ def enviar_whatsapp(telefono: str, mensaje: str, jid_override: str = None) -> bo
     }
     try:
         resp = requests.post(
-            f"{EVOLUTION_API_URL}/message/sendText/{INSTANCE_NAME}",
+            f"{WHATSAPP_SERVICE_URL}/message/sendText/{INSTANCE_NAME}",
             headers=headers, json=payload, timeout=15
         )
         resp.raise_for_status()
@@ -114,6 +122,31 @@ def enviar_whatsapp(telefono: str, mensaje: str, jid_override: str = None) -> bo
         return True
     except Exception as e:
         logger.error(f"Error enviando WhatsApp a {telefono}: {e}")
+        return False
+
+
+def enviar_imagen_whatsapp(telefono: str, imagen_url: str, caption: str = "") -> bool:
+    """Envía una imagen vía WhatsApp usando el microservicio whatsapp-web.js."""
+    logger = logging.getLogger(__name__)
+    numero = telefono.replace("+", "").replace(" ", "")
+    try:
+        payload = {
+            "number": numero,
+            "mediaMessage": {
+                "mediatype": "image",
+                "media": imagen_url,
+                "caption": caption
+            }
+        }
+        resp = requests.post(
+            f"{WHATSAPP_SERVICE_URL}/message/sendMedia/{INSTANCE_NAME}",
+            json=payload, timeout=30
+        )
+        resp.raise_for_status()
+        logger.info(f"Imagen enviada a {numero}: {imagen_url}")
+        return True
+    except Exception as e:
+        logger.error(f"Error enviando imagen a {telefono}: {e}")
         return False
 
 
@@ -130,7 +163,7 @@ def crm_dashboard(request):
     connection_state = 'close'
     try:
         headers = {'apikey': API_KEY}
-        state_response = requests.get(f"{EVOLUTION_API_URL}/instance/connectionState/{INSTANCE_NAME}", headers=headers, timeout=5)
+        state_response = requests.get(f"{WHATSAPP_SERVICE_URL}/instance/connectionState/{INSTANCE_NAME}", headers=headers, timeout=5)
         if state_response.status_code == 200:
             state_data = state_response.json()
             connection_state = state_data.get('instance', {}).get('state', 'close')
@@ -150,7 +183,7 @@ def conectar_whatsapp(request):
     """Genera o recupera el QR para conectar la cuenta (nuevo microservicio whatsapp-web.js)"""
     try:
         # Verificar estado de conexión
-        state_resp = requests.get(f"{EVOLUTION_API_URL}/instance/connectionState/{INSTANCE_NAME}")
+        state_resp = requests.get(f"{WHATSAPP_SERVICE_URL}/instance/connectionState/{INSTANCE_NAME}")
         if state_resp.status_code != 200:
             return JsonResponse({'error': 'No se pudo obtener estado de la instancia'}, status=500)
         state_data = state_resp.json()
@@ -160,7 +193,7 @@ def conectar_whatsapp(request):
             return JsonResponse({'status': 'CONNECTED'})
         
         # Obtener QR base64
-        qr_resp = requests.get(f"{EVOLUTION_API_URL}/instance/qrBase64/{INSTANCE_NAME}")
+        qr_resp = requests.get(f"{WHATSAPP_SERVICE_URL}/instance/qrBase64/{INSTANCE_NAME}")
         if qr_resp.status_code != 200:
             return JsonResponse({'error': 'No se pudo obtener QR'}, status=500)
         qr_data = qr_resp.json()
@@ -183,7 +216,7 @@ def qr_proxy(request):
     try:
         # Primero verificar si ya está conectado
         state_r = requests.get(
-            f'{EVOLUTION_API_URL}/instance/connectionState/{INSTANCE_NAME}',
+            f'{WHATSAPP_SERVICE_URL}/instance/connectionState/{INSTANCE_NAME}',
             timeout=5
         )
         state = state_r.json().get('instance', {}).get('state', 'close')
@@ -192,7 +225,7 @@ def qr_proxy(request):
 
         # Si no, devolver el QR
         qr_r = requests.get(
-            f'{EVOLUTION_API_URL}/instance/qrBase64/{INSTANCE_NAME}',
+            f'{WHATSAPP_SERVICE_URL}/instance/qrBase64/{INSTANCE_NAME}',
             timeout=5
         )
         qr_data = qr_r.json()
@@ -209,10 +242,13 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
 
 @csrf_exempt
-def webhook_evolution(request):
-    """Recibe webhooks de Evolution API para mensajes de WhatsApp"""
+def webhook_crm(request):
+    """Recibe webhooks del microservicio whatsapp-web.js para mensajes de WhatsApp"""
     if request.method != 'POST':
         return HttpResponse('Method not allowed', status=405)
+    
+    # KILL SWITCH: quitar esta linea cuando pipeline estable
+    AUTO_RESPONSE_ENABLED = True
     
     # Log headers y body crudo
     headers = dict(request.headers)
@@ -258,6 +294,10 @@ def webhook_evolution(request):
                 logger.error(f'[DIAG] Message remote_jid={msg.get("key", {}).get("remoteJid", "")}, fromMe={msg.get("key", {}).get("fromMe", False)}')
                 # Procesar mensaje entrante
                 try:
+                    # Inicializar variables fuera del bloque condicional
+                    real_phone = None
+                    message_content_stripped = ''
+                    phone = ''
                     # Extraer datos del mensaje
                     key = msg.get('key', {})
                     remote_jid = key.get('remoteJid', '')
@@ -266,40 +306,45 @@ def webhook_evolution(request):
                     # Procesar mensajes directos: @s.whatsapp.net Y @lid (nuevo sistema WA)
                     is_group = remote_jid.endswith('@g.us') or remote_jid.endswith('@broadcast')
                     if not from_me and remote_jid and not is_group:
-                        # Extraer número de teléfono
-                        # @s.whatsapp.net -> número directo
-                        # @lid -> usar pushName del payload o buscar en contacts
+                        # Extraer número de teléfono del JID
+                        # PRIORIDAD: usar resolvedPhone del microservicio (resuelve @lid → número real)
+                        # Fallback: extraer del raw_id si es numérico
+                        import re as re_mod
                         raw_id = remote_jid.split('@')[0]
-                        if remote_jid.endswith('@lid'):
-                            # Intentar resolver @lid a número via Evolution API
-                            push_name = msg.get('pushName', '')
-                            try:
-                                contact_resp = requests.get(
-                                    f"{EVOLUTION_API_URL}/chat/findContacts/{INSTANCE_NAME}",
-                                    headers={'apikey': API_KEY},
-                                    params={'where': f'{{"id":"{remote_jid}"}}'},
-                                    timeout=3
-                                )
-                                contacts = contact_resp.json() if contact_resp.ok else []
-                                if contacts and isinstance(contacts, list) and contacts[0].get('id'):
-                                    resolved = contacts[0].get('id','').split('@')[0]
-                                    phone = '+' + resolved if resolved.startswith('57') else '+57' + resolved
-                                else:
-                                    # Fallback: usar el LID como identificador único
-                                    phone = f'lid_{raw_id}'
-                            except Exception:
+                        real_sender_jid = payload.get('sender', '')
+                        resolved_phone = payload.get('resolvedPhone')  # ← Nuevo: microservicio ya resolvió
+                        resolved_jid = payload.get('resolvedJid', '')   # ← JID resuelto (@c.us o @lid)
+                        
+                        if resolved_phone and re_mod.match(r'^\d+$', str(resolved_phone)):
+                            # El microservicio resolvió el @lid a número real
+                            phone = '+' + str(resolved_phone) if str(resolved_phone).startswith('57') else '+57' + str(resolved_phone)
+                            real_phone = phone
+                            logger.info(f'[WEBHOOK] Número resuelto por microservicio: {phone}')
+                        elif remote_jid.endswith('@lid'):
+                            # 1. Si el raw_id parece número colombiano (57XXXXXXXXXX)
+                            if re_mod.match(r'^57\d{8,10}$', raw_id):
+                                phone = '+' + raw_id
+                            # 2. Si el sender es @s.whatsapp.net (tiene el número real)
+                            elif real_sender_jid and '@s.whatsapp.net' in real_sender_jid:
+                                phone = '+' + real_sender_jid.split('@')[0]
+                            # 3. Si el sender es @lid pero numérico
+                            elif real_sender_jid and '@lid' in real_sender_jid:
+                                sr = real_sender_jid.split('@')[0]
+                                phone = '+' + sr if re_mod.match(r'^57\d{8,10}$', sr) else f'lid_{raw_id}'
+                            else:
                                 phone = f'lid_{raw_id}'
                         else:
                             phone = '+' + raw_id if raw_id.startswith('57') else raw_id
                             if not phone.startswith('+'):
                                 phone = '+57' + phone
                         
-                        # Extraer número real del sender si está presente
-                        real_sender_jid = payload.get('sender')
-                        real_phone = None
-                        if real_sender_jid and '@s.whatsapp.net' in real_sender_jid:
-                            real_phone = '+' + real_sender_jid.split('@')[0]
-                            logger.info(f'[WEBHOOK] Número real obtenido del sender: {real_phone}')
+                        # Guardar número real para búsquedas en DB
+                        if not real_phone:
+                            if real_sender_jid:
+                                sr = real_sender_jid.split('@')[0]
+                                if re_mod.match(r'^57\d{8,10}$', sr):
+                                    real_phone = '+' + sr
+                                    logger.info(f'[WEBHOOK] Número real del sender: {real_phone}')
                         
                         # Extraer texto del mensaje
                         message_content = ''
@@ -309,20 +354,129 @@ def webhook_evolution(request):
                         elif 'extendedTextMessage' in message_obj:
                             message_content = message_obj.get('extendedTextMessage', {}).get('text', '')
                         
-                        logger.info(f'Procesando mensaje de {phone}: {message_content[:100]}')
-                        logger.info(f'[WEBHOOK] Mensaje recibido de {phone}: "{message_content[:50]}"')
+                        # ── DETECCIÓN DE MEDIA (audio, imagen, video, sticker, documento) ──
+                        has_media = payload.get('hasMedia', False)
+                        media_type = payload.get('mediaType')  # 'ptt', 'audio', 'image', 'video', 'sticker', 'document'
+                        media_caption = payload.get('mediaCaption', '')
                         
-                        # Buscar o crear lead en la base de datos leads_db, o crear lead virtual temporal para números no registrados
+                        if has_media and not message_content:
+                            # El lead envió media sin texto. Responder según tipo.
+                            if media_type in ('ptt', 'audio'):
+                                message_content_stripped = '[AUDIO]'
+                                message_content = '[AUDIO]'
+                                logger.info(f'[WEBHOOK] Nota de voz/audio recibido de {phone}')
+                            elif media_type == 'image':
+                                message_content_stripped = '[IMAGEN]'
+                                message_content = '[IMAGEN]'
+                                logger.info(f'[WEBHOOK] Imagen recibida de {phone}')
+                            elif media_type == 'video':
+                                message_content_stripped = '[VIDEO]'
+                                message_content = '[VIDEO]'
+                                logger.info(f'[WEBHOOK] Video recibido de {phone}')
+                            elif media_type == 'sticker':
+                                message_content_stripped = '[STICKER]'
+                                message_content = '[STICKER]'
+                                logger.info(f'[WEBHOOK] Sticker recibido de {phone}')
+                            elif media_type == 'document':
+                                message_content_stripped = '[DOCUMENTO]'
+                                message_content = '[DOCUMENTO]'
+                                logger.info(f'[WEBHOOK] Documento recibido de {phone}')
+                        
+                        if has_media and media_caption and not message_content:
+                            # Media con caption: usar el caption como texto
+                            message_content = media_caption
+                            message_content_stripped = media_caption.strip()
+                            logger.info(f'[WEBHOOK] Media con caption de {phone}: "{media_caption[:50]}"')
+                        
+                        # Inicializar stripped (necesario antes de continue)
+                        if not message_content_stripped:
+                            message_content_stripped = message_content.strip() if message_content else ''
+                        # FILTRO: ignorar mensajes vacíos, system events o solo whitespace
+                        if not message_content_stripped:
+                            logger.info(f'[WEBHOOK] Mensaje vacío de {phone} - ignorado')
+                            continue
+                        
+                        # FILTRO: ignorar eventos de sistema (recibos de lectura, delivery, etc.)
+                        system_patterns = ['_SYSTEM_', 'delivery', 'read_receipt', 'acks', 'receipt']
+                        msg_type_str = str(msg.get('message', {}))
+                        is_system_event = any(p in msg_type_str for p in system_patterns)
+                        if is_system_event:
+                            logger.info(f'[WEBHOOK] Evento de sistema de {phone} - ignorado')
+                            continue
+                        
+                        logger.info(f'Procesando mensaje de {phone}: {message_content_stripped[:100]}')
+                        logger.info(f'[WEBHOOK] Mensaje recibido de {phone}: "{message_content_stripped[:50]}"')
+                        
+                        # DETECCIÓN DE AUTO-RESPUESTAS de WhatsApp Business
+                        # Si el lead tiene un bot de WA Business, no respondemos
+                        auto_reply_patterns = [
+                            'gracias por comunicarte con', 'gracias por escribir',
+                            'te damos la bienvenida', 'bienvenido', 'bienvenida',
+                            'en este momento no podemos', 'fuera del horario',
+                            'para agendar tu cita', 'puedes agendar',
+                            'horarios disponibles', 'reservar directamente',
+                            'no te entendí', 'no entendí',
+                            'cómo podemos ayudarte', 'cómo puedo ayudarte',
+                            'será un placer atenderte', 'gracias por contactar',
+                        ]
+                        msg_lower = message_content_stripped.lower()
+                        is_auto_reply = any(p in msg_lower for p in auto_reply_patterns)
+                        if is_auto_reply:
+                            # ANTES se ignoraba (continue) → el lead nunca "respondía" y el bot
+                            # lo arrastraba hasta la despedida. AHORA cruzamos la barrera: una
+                            # respuesta cálida y curiosa para que una persona real conteste.
+                            logger.info(f'[WEBHOOK] Auto-respuesta de WA Business de {phone} → cruzando barrera')
+                        
+                        # DETECCIÓN DE STICKERS / EMOJIS SOLOS
+                        emoji_only = message_content_stripped.strip()
+                        has_letters = any(c.isalpha() for c in emoji_only)
+                        has_numbers = any(c.isdigit() for c in emoji_only)
+                        if not has_letters and not has_numbers and len(emoji_only) < 10:
+                            logger.info(f'[WEBHOOK] Sticker/emoji de {phone}: "{emoji_only}" → respuesta 👍')
+                            
+                            def _responder_emoji(tel, jid):
+                                import time, random
+                                time.sleep(random.uniform(0.5, 1.5))
+                                enviar_whatsapp(tel, '👍', jid_override=jid)
+                            
+                            import threading as _thr
+                            _thr.Thread(target=_responder_emoji, args=(phone, remote_jid), daemon=True).start()
+                            
+                            # Guardar en BD si el lead existe
+                            if lead.id > 0:
+                                message_content = message_content_stripped
+                                from leads_admin.prospector_agent import guardar_mensaje
+                                from leads_admin.models import LeadConversacion as _LC
+                                conv = _LC.objects.using('leads_db').filter(lead=lead).first()
+                                if conv:
+                                    guardar_mensaje(conv, 'user', message_content)
+                                    guardar_mensaje(conv, 'assistant', '👍')
+                            continue
+                        
+                        # Usar versión limpia del mensaje para todo el procesamiento
+                        message_content = message_content_stripped
+                        
+                        # Buscar o crear lead en la base de datos leads_db
+                        # Los teléfonos pueden estar con o sin + en la DB
                         from .models import Lead, ChatWhatsApp, MensajeWhatsApp, LeadConversacion
+                        from django.db.models import Q as Q_lookup
                         
                         lead = None
                         created = False
+                        # Normalizar: quitar + para búsqueda flexible
+                        phone_clean = phone.replace('+', '')
                         
                         try:
-                            # Primero intentar buscar por teléfono
-                            lead = Lead.objects.using('leads_db').get(telefono=phone)
-                            logger.info(f'Lead existente encontrado: {lead.nombre_establecimiento}')
-                        except Lead.DoesNotExist:
+                            # Buscar por teléfono (con y sin +)
+                            lead = Lead.objects.using('leads_db').filter(
+                                Q_lookup(telefono=phone) | Q_lookup(telefono=phone_clean) | Q_lookup(telefono='+' + phone_clean)
+                            ).first()
+                            if lead:
+                                logger.info(f'Lead existente encontrado: {lead.nombre_establecimiento} (tel={lead.telefono})')
+                        except Exception as e:
+                            logger.warning(f'Error buscando lead: {e}')
+                        
+                        if not lead:
                             # No existe lead para este número
                             # Crear un objeto lead virtual temporal para procesar la respuesta
                             # SIN guardarlo en la base de datos
@@ -378,6 +532,16 @@ def webhook_evolution(request):
                                 chat.phone = real_phone
                                 chat.save(using='leads_db')
                             
+                            # GUARDAR JID PARA FUTUROS: si es @lid, persistir el sender JID
+                            # para poder responder en el futuro cuando el microservicio resuelva
+                            if remote_jid.endswith('@lid') and real_sender_jid:
+                                # Guardar el sender JID (@s.whatsapp.net o @c.us) como metadata en chat
+                                # para que enviar_whatsapp pueda resolverlo después
+                                if not chat.contact_name or chat.contact_name.startswith('lid_'):
+                                    chat.contact_name = real_sender_jid  # temporal, sobrescribible
+                                    chat.save(using='leads_db')
+                                    logger.info(f'[LID] JID real guardado para {remote_jid}: {real_sender_jid}')
+                            
                             # Guardar mensaje
                             MensajeWhatsApp.objects.using('leads_db').get_or_create(
                                 message_key=f"{remote_jid}_{datetime.now().timestamp()}",
@@ -417,29 +581,76 @@ def webhook_evolution(request):
                             # (evitar bloquear el webhook - responder 200 inmediatamente)
                             import threading
                             _chat_ref = chat
-                            def _responder_async(lead_id, msg_content, tel, chat_obj, jid):
+                            def _responder_async(lead_id, msg_content, tel, chat_obj, jid, es_autoreply=False):
                                 import time, random
                                 from leads_admin.models import MensajeWhatsApp
+                                
+                                # GUARD: Si el teléfono es un LID sin resolver, no intentar responder.
+                                # El microservicio whatsapp-web.js NO puede enviar a @lid (error "t").
+                                # Solo respondemos si tenemos número real (@c.us) o el JID es @s.whatsapp.net.
+                                if str(tel).startswith('lid_') and (not jid or '@lid' in str(jid)):
+                                    logger.info(f'[AUTO-RESPONDER] Saltando respuesta a LID sin resolver: {tel} (jid={jid})')
+                                    return
+                                
                                 MAX_RETRIES = 2
+                                # Stagger aleatorio para no saturar la API (múltiples respuestas simultáneas)
+                                stagger = random.uniform(0.5, 3.0)
+                                time.sleep(stagger)
                                 for attempt in range(MAX_RETRIES):
                                     try:
                                         import time, random
                                         logger.error(f'[DIAG] Entrando a respuesta automática. phone={tel}, message={msg_content[:50]}')
 
-                                        from leads_admin.prospector_agent import procesar_lead
-                                        logger.error(f'[DIAG] procesar_lead importado. lead.id={lead_id}')
-
-                                        respuesta = procesar_lead(lead_id, mensaje_entrante=msg_content)
+                                        if es_autoreply:
+                                            # Lead contestó con auto-reply de WA Business → cruzar barrera
+                                            if lead_id > 0:
+                                                from leads_admin.prospector_agent import procesar_lead_autoreply
+                                                respuesta = procesar_lead_autoreply(lead_id, msg_content)
+                                            else:
+                                                from leads_admin.prospector_agent import procesar_mensaje_whatsapp_autoreply
+                                                respuesta = procesar_mensaje_whatsapp_autoreply(
+                                                    remote_jid=jid, mensaje_cliente=msg_content, phone=tel)
+                                        elif lead_id > 0:
+                                            # Lead real registrado en DB: usar procesar_lead normal
+                                            from leads_admin.prospector_agent import procesar_lead
+                                            logger.error(f'[DIAG] procesar_lead importado. lead.id={lead_id}')
+                                            respuesta = procesar_lead(lead_id, mensaje_entrante=msg_content)
+                                        else:
+                                            # Lead virtual (número no contactado, @lid): usar procesar_mensaje_whatsapp
+                                            from leads_admin.prospector_agent import procesar_mensaje_whatsapp
+                                            logger.error(f'[DIAG] Usando procesar_mensaje_whatsapp para lead virtual. lead_id={lead_id}, jid={jid}')
+                                            respuesta = procesar_mensaje_whatsapp(
+                                                remote_jid=jid,
+                                                mensaje_cliente=msg_content,
+                                                phone=tel
+                                            )
                                         logger.error(f'[DIAG] Respuesta generada: {str(respuesta)[:100]}')
 
                                         if respuesta:
-                                            partes = [p.strip() for p in respuesta.split('\n\n') if p.strip()]
+                                            # Detectar marcador de imagen planes
+                                            enviar_imagen = False
+                                            texto_limpio = respuesta
+                                            if '[IMAGEN_PLANES]' in respuesta:
+                                                texto_limpio = respuesta.replace('[IMAGEN_PLANES]', '').strip()
+                                                enviar_imagen = True
+                                                logger.info(f'[DIAG] Marcador IMAGEN_PLANES detectado en respuesta')
+                                            
+                                            partes = [p.strip() for p in texto_limpio.split('\n\n') if p.strip()]
                                             logger.error(f'[DIAG] Partes a enviar: {len(partes)}')
                                             for i, parte in enumerate(partes):
                                                 logger.error(f'[DIAG] Enviando parte {i+1}/{len(partes)} a {tel}')
                                                 resultado = enviar_whatsapp(tel, parte, jid_override=jid)
                                                 logger.error(f'[DIAG] Resultado envío parte {i+1}: {resultado}')
                                                 time.sleep(random.uniform(2, 4))
+                                            
+                                            # Enviar imagen de planes si el LLM lo solicitó
+                                            if enviar_imagen:
+                                                logger.info(f'[DIAG] Enviando imagen de planes a {tel}')
+                                                enviar_imagen_whatsapp(
+                                                    tel,
+                                                    IMAGEN_PLANES_URL,
+                                                    caption=CAPTION_PLANES
+                                                )
                                         else:
                                             logger.error(f'[DIAG] procesar_lead devolvió None o vacío')
                                         return  # éxito
@@ -450,10 +661,12 @@ def webhook_evolution(request):
                                         else:
                                             logger.error(f'[AGENTE] Agotados reintentos para {tel}')
                             phone_for_response = real_phone if real_phone else phone
-                            jid_for_response = real_sender_jid if real_sender_jid else remote_jid
+                            # Usar JID resuelto por el microservicio (@c.us) para responder
+                            # Esto garantiza que la respuesta llegue al chat correcto
+                            jid_for_response = resolved_jid if resolved_jid else (real_sender_jid if real_sender_jid else remote_jid)
                             threading.Thread(
                                 target=_responder_async,
-                                args=(lead.id, message_content, phone_for_response, _chat_ref, jid_for_response),
+                                args=(lead.id, message_content, phone_for_response, _chat_ref, jid_for_response, is_auto_reply),
                                 daemon=True
                             ).start()
                             logger.info(f'[WEBHOOK] Thread iniciado para {phone_for_response}')
@@ -526,11 +739,10 @@ from datetime import datetime
 def guardar_mensaje_whatsapp(payload):
     """Guardar mensaje entrante en base de datos local"""
     try:
-        # Ejemplo de extracción de datos del payload de Evolution API
-        # Este código debe adaptarse al esquema exacto del webhook de Evolution API
-        # Si es un JSON de Evolution API:
+        # Extracción de datos del payload del webhook (whatsapp-web.js)
+        # Ejemplo:
         #   - chat['id'] = remoteJid
-        #   - chat['name'] = nombre del contacto (podrías obtenerlo de Evolution API)
+        #   - chat['name'] = nombre del contacto
         #   - message_text = conversation | extendedTextMessage.text | etc.
         #   - sender = remoteJid.extractedPhone
         #   - timestamp = messageTimestamp
@@ -603,7 +815,7 @@ def obtener_estado_conexion(request):
     """Devuelve estado de conexión de WhatsApp"""
     try:
         headers = {'apikey': API_KEY}
-        response = requests.get(f"{EVOLUTION_API_URL}/instance/connectionState/{INSTANCE_NAME}", headers=headers, timeout=5)
+        response = requests.get(f"{WHATSAPP_SERVICE_URL}/instance/connectionState/{INSTANCE_NAME}", headers=headers, timeout=5)
         if response.status_code == 200:
             state_data = response.json()
             estado = state_data.get('instance', {}).get('state', 'close')
@@ -617,10 +829,10 @@ def obtener_estado_conexion(request):
 
 @user_passes_test(is_superadmin)
 def obtener_chats(request):
-    """Obtiene chats reales de WhatsApp desde Evolution API"""
+    """Obtiene chats reales de WhatsApp desde el microservicio"""
     try:
         headers = {'apikey': API_KEY}
-        response = requests.get(f"{EVOLUTION_API_URL}/chat/findChats/{INSTANCE_NAME}", headers=headers, timeout=10)
+        response = requests.get(f"{WHATSAPP_SERVICE_URL}/chat/findChats/{INSTANCE_NAME}", headers=headers, timeout=10)
         if response.status_code == 200:
             chats = response.json()
             # Estructura real: [{id, owner, lastMsgTimestamp?}, ...]
@@ -662,7 +874,7 @@ def obtener_chats(request):
 @user_passes_test(is_superadmin)
 def obtener_mensajes(request, chat_id):
     """Obtiene mensajes de un chat específico"""
-    # TEMPORAL: Evolution API no expone endpoint claro para mensajes históricos
+    # NOTA: whatsapp-web.js no expone endpoint claro para mensajes históricos
     # Los mensajes llegan via webhook y se almacenarán en futura versión
     logger.info(f'Solicitud de mensajes para chat {chat_id} - endpoint no implementado aún')
     return JsonResponse({'messages': [], 'note': 'Los mensajes históricos no están disponibles aún. Los mensajes nuevos aparecerán cuando lleguen por WhatsApp.'})

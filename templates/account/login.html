@@ -31,15 +31,15 @@
                     {% endif %}
 
                     <!-- Formulario de login simplificado -->
-                    <form method="post" action="{% url 'account_login' %}" class="needs-validation" novalidate>
+                    <form method="post" action="/cuentas/login/" class="needs-validation" novalidate>
                         {% csrf_token %}
                         
                         <!-- Campo de usuario/email -->
                         <div class="mb-4">
-                            <label for="id_login" class="form-label fw-medium form-text">
+                            <label for="id_username" class="form-label fw-medium form-text">
                                 Usuario o Email <span class="text-danger">*</span>
                             </label>
-                            <input type="text" name="login" id="id_login" class="form-control py-3" 
+                            <input type="text" name="username" id="id_username" class="form-control py-3" 
                                    placeholder="Ingresa tu usuario o email" required>
                         </div>
                         
