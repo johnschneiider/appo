@@ -285,31 +285,30 @@ class Command(BaseCommand):
                 })
         
         # Conversaciones que necesitan follow‑up 24h
-        # Estado 'contactado', último contacto hace más de 24h, pero menos de 72h
-        # EXCLUIR leads con estado 'respondio' o 'activo' (ya están en conversación)
+        # Estado 'contactado', último contacto hace más de 24h
+        # EXCLUIR leads con estado 'respondio', rechazo_permanente, no_contactar
         conv_followup_24h = LeadConversacion.objects.filter(
             estado='contactado',
-            ultimo_contacto__lt=hace_24h,      # contacto hace más de 24h
-            ultimo_contacto__gte=hace_72h,     # contacto hace menos de 72h
+            ultimo_contacto__lt=hace_24h,
             lead__telefono__regex=r'^\d{8,15}$',
-        )
-        
-        # Conversaciones que necesitan follow‑up 48h
-        # Estado 'followup_24h', último contacto hace más de 48h (desde el follow‑up 24h)
-        hace_48h = ahora - timedelta(hours=48)
-        conv_followup_48h = LeadConversacion.objects.filter(
-            estado='followup_24h',
-            ultimo_contacto__lte=hace_48h,
-            lead__telefono__regex=r'^\d{8,15}$',
+        ).exclude(
+            lead__estado__in=['rechazo_permanente', 'no_contactar', 'no_respondio']
         )
         
         # Conversaciones existentes para follow‑up
-        # EXCLUIR leads que YA respondieron (tienen mensajes de usuario reales)
         for conv in conv_followup_24h:
             msgs = conv.mensajes if isinstance(conv.mensajes, list) else []
             user_msgs = [m for m in msgs if m.get('role') == 'user' and m.get('content', '').strip()]
             if len(user_msgs) > 0:
                 logger.info(f'[FOLLOWUP] Lead {conv.lead.id} ({conv.lead.nombre_establecimiento}) ya respondió, saltando follow-up 24h')
+                continue
+            # ═══ FIX 4d: Detectar leads que NUNCA respondieron después del followup_24h ═══
+            # Si la conversación está en estado 'contactado' y el último contacto
+            # fue hace más de 48h → marcar como 'no_respondio'
+            if conv.ultimo_contacto and (ahora - conv.ultimo_contacto) > timedelta(hours=48):
+                logger.info(f'[NO_RESPONDIO] Lead {conv.lead.id} ({conv.lead.nombre_establecimiento}) no respondió en 48h, archivando')
+                conv.estado = 'no_respondio'
+                conv.save(using='leads_db')
                 continue
             conversaciones.append({
                 'lead': conv.lead,
@@ -317,17 +316,15 @@ class Command(BaseCommand):
                 'etapa': 'followup_24h'
             })
         
-        for conv in conv_followup_48h:
-            msgs = conv.mensajes if isinstance(conv.mensajes, list) else []
-            user_msgs = [m for m in msgs if m.get('role') == 'user' and m.get('content', '').strip()]
-            if len(user_msgs) > 0:
-                logger.info(f'[FOLLOWUP] Lead {conv.lead.id} ({conv.lead.nombre_establecimiento}) ya respondió, saltando follow-up 48h')
-                continue
-            conversaciones.append({
-                'lead': conv.lead,
-                'conversacion': conv,
-                'etapa': 'followup_48h'
-            })
+        # ═══ FIX 4d: leads en estado 'no_respondio' con +90 días → archivar ═══
+        hace_90dias = ahora - timedelta(days=90)
+        leads_no_respondio_antiguos = LeadConversacion.objects.filter(
+            estado='no_respondio',
+            ultimo_contacto__lt=hace_90dias,
+        )
+        for conv in leads_no_respondio_antiguos:
+            logger.info(f'[ARCHIVAR] Lead {conv.lead.id} ({conv.lead.nombre_establecimiento}) no respondió hace 90 días, archivando')
+            # Por ahora solo log, se podría marcar para borrado lógico
         
         # Ordenar por prioridad descendente del lead, luego fecha de ingreso
         default_date = timezone.make_aware(datetime(2024, 1, 1))

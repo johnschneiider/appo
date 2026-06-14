@@ -1,5 +1,14 @@
 {% extends 'base.html' %}
 {% block title %}Gestionar Días de Descanso{% endblock %}
+{% block extra_css %}
+<style>
+/* ── Días descanso: branding Appo ── */
+.brand-header { background: linear-gradient(135deg, #133A7F, #1E5BC6); color: #fff; border-radius: 14px; padding: 1.5rem 2rem; }
+.brand-header h1, .brand-header p { color: #fff !important; }
+.brand-card { border-radius: 12px; border: 1px solid #eaeef5; }
+.brand-badge { background: rgba(19,58,127,0.08); color: #133A7F; font-weight: 600; border-radius: 20px; padding: 4px 12px; }
+</style>
+{% endblock %}
 {% block content %}
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -22,7 +31,7 @@
   {% if dias_descanso %}
   <div class="card shadow-sm">
     <div class="card-header bg-primary text-white">
-      <h5 class="mb-0">Historial de Días de Descanso</h5>
+      <h5 class="mb-0">Gestión de Días de Descanso</h5>
     </div>
     <div class="card-body p-0">
       <div class="table-responsive">
