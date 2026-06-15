@@ -620,6 +620,10 @@ def webhook_crm(request):
                                 def _responder_async(lead_id, msg_content, tel, chat_obj, jid, es_autoreply=False):
                                     import time, random
                                     from leads_admin.models import MensajeWhatsApp
+                                    # Thread daemon: cerrar conexiones DB heredadas/obsoletas para evitar
+                                    # 'connection already closed' (psycopg2.InterfaceError) en threads.
+                                    from django.db import close_old_connections
+                                    close_old_connections()
                                     
                                     # GUARD: el microservicio whatsapp-web.js SÍ puede enviar a @lid
                                     # (verificado en logs: "Enviado exitosamente con formato @lid") y además
