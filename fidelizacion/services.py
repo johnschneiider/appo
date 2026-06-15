@@ -236,23 +236,40 @@ class MensajeLoopService:
     def _procesar_mensajes(self):
         """Procesa los mensajes que están listos para enviar"""
         from fidelizacion.models import MensajeFidelizacion, EstadoMensaje
-        from django.db import OperationalError, ProgrammingError
-        
+        from django.db import OperationalError, ProgrammingError, InterfaceError, close_old_connections
+
+        # Thread daemon: Daphne cierra las conexiones viejas del proceso (CONN_MAX_AGE).
+        # Refrescar la conexión ANTES de tocar la BD evita el InterfaceError:
+        # 'connection already closed' que dejaba el loop fallando para siempre.
+        try:
+            close_old_connections()
+        except Exception as e:
+            logger.warning(f"close_old_connections falló (se intentará igual): {e}")
+
         try:
             ahora = timezone.now()
             
-            # Obtener mensajes programados que ya deben enviarse
-            mensajes_pendientes = MensajeFidelizacion.objects.filter(
+            # Obtener mensajes programados que ya deben enviarse.
+            # IMPORTANTE: evaluar el QuerySet (list()) DENTRO del try para que el hit
+            # real a la BD quede protegido. Antes el `if not mensajes_pendientes`
+            # forzaba la evaluación FUERA del try y la excepción subía al loop padre.
+            mensajes_pendientes = list(MensajeFidelizacion.objects.filter(
                 estado=EstadoMensaje.PROGRAMADO,
                 fecha_programada__lte=ahora
-            ).select_related('destinatario', 'reserva')[:10]  # Procesar máximo 10 a la vez
-        except (OperationalError, ProgrammingError) as e:
-            # Si hay error de base de datos (tabla no existe, columna no existe, etc.)
-            # Verificar si es porque la tabla no existe
+            ).select_related('destinatario', 'reserva')[:10])  # Procesar máximo 10 a la vez
+        except (OperationalError, ProgrammingError, InterfaceError) as e:
+            # Si hay error de base de datos (tabla no existe, conexión cerrada, etc.)
             error_str = str(e)
             if 'does not exist' in error_str or 'relation' in error_str.lower():
                 # La tabla no existe aún, esperar a que se cree
                 logger.debug(f"Tabla fidelizacion_mensajes no existe aún, esperando...")
+            elif 'connection already closed' in error_str.lower() or 'connection' in error_str.lower():
+                # Conexión stale: cerrarla para que el próximo ciclo abra una nueva sana.
+                logger.warning(f"Conexión BD stale, se refrescará en el próximo ciclo: {e}")
+                try:
+                    close_old_connections()
+                except Exception:
+                    pass
             else:
                 logger.warning(f"Error de base de datos: {e}")
             return
