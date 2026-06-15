@@ -621,81 +621,82 @@ def webhook_crm(request):
                                     import time, random
                                     from leads_admin.models import MensajeWhatsApp
                                     
-                                    # GUARD: Si el teléfono es un LID sin resolver, no intentar responder.
-                                    # El microservicio whatsapp-web.js NO puede enviar a @lid (error "t").
-                                    # Solo respondemos si tenemos número real (@c.us) o el JID es @s.whatsapp.net.
-                                    if str(tel).startswith('lid_') and (not jid or '@lid' in str(jid)):
-                                        logger.info(f'[AUTO-RESPONDER] Saltando respuesta a LID sin resolver: {tel} (jid={jid})')
+                                    # GUARD: el microservicio whatsapp-web.js SÍ puede enviar a @lid
+                                    # (verificado en logs: "Enviado exitosamente con formato @lid") y además
+                                    # resuelve @lid → @c.us. Solo abortamos si NO hay ningún destino utilizable:
+                                    # ni número real, ni JID alguno donde entregar.
+                                    if str(tel).startswith('lid_') and not jid:
+                                        logger.info(f'[AUTO-RESPONDER] Sin destino para LID y sin JID, abortando: {tel}')
                                         return
                                 
-                                MAX_RETRIES = 2
-                                # Stagger aleatorio para no saturar la API (múltiples respuestas simultáneas)
-                                stagger = random.uniform(0.5, 3.0)
-                                time.sleep(stagger)
-                                for attempt in range(MAX_RETRIES):
-                                    try:
-                                        import time, random
-                                        logger.error(f'[DIAG] Entrando a respuesta automática. phone={tel}, message={msg_content[:50]}')
+                                    MAX_RETRIES = 2
+                                    # Stagger aleatorio para no saturar la API (múltiples respuestas simultáneas)
+                                    stagger = random.uniform(0.5, 3.0)
+                                    time.sleep(stagger)
+                                    for attempt in range(MAX_RETRIES):
+                                        try:
+                                            import time, random
+                                            logger.error(f'[DIAG] Entrando a respuesta automática. phone={tel}, message={msg_content[:50]}')
 
-                                        if es_autoreply:
-                                            # Lead contestó con auto-reply de WA Business → cruzar barrera
-                                            if lead_id > 0:
-                                                from leads_admin.prospector_agent import procesar_lead_autoreply
-                                                respuesta = procesar_lead_autoreply(lead_id, msg_content)
+                                            if es_autoreply:
+                                                # Lead contestó con auto-reply de WA Business → cruzar barrera
+                                                if lead_id > 0:
+                                                    from leads_admin.prospector_agent import procesar_lead_autoreply
+                                                    respuesta = procesar_lead_autoreply(lead_id, msg_content)
+                                                else:
+                                                    from leads_admin.prospector_agent import procesar_mensaje_whatsapp_autoreply
+                                                    respuesta = procesar_mensaje_whatsapp_autoreply(
+                                                        remote_jid=jid, mensaje_cliente=msg_content, phone=tel)
+                                            elif lead_id > 0:
+                                                # Lead real registrado en DB: usar procesar_lead normal
+                                                from leads_admin.prospector_agent import procesar_lead
+                                                logger.error(f'[DIAG] procesar_lead importado. lead.id={lead_id}')
+                                                respuesta = procesar_lead(lead_id, mensaje_entrante=msg_content)
                                             else:
-                                                from leads_admin.prospector_agent import procesar_mensaje_whatsapp_autoreply
-                                                respuesta = procesar_mensaje_whatsapp_autoreply(
-                                                    remote_jid=jid, mensaje_cliente=msg_content, phone=tel)
-                                        elif lead_id > 0:
-                                            # Lead real registrado en DB: usar procesar_lead normal
-                                            from leads_admin.prospector_agent import procesar_lead
-                                            logger.error(f'[DIAG] procesar_lead importado. lead.id={lead_id}')
-                                            respuesta = procesar_lead(lead_id, mensaje_entrante=msg_content)
-                                        else:
-                                            # Lead virtual (número no contactado, @lid): usar procesar_mensaje_whatsapp
-                                            from leads_admin.prospector_agent import procesar_mensaje_whatsapp
-                                            logger.error(f'[DIAG] Usando procesar_mensaje_whatsapp para lead virtual. lead_id={lead_id}, jid={jid}')
-                                            respuesta = procesar_mensaje_whatsapp(
-                                                remote_jid=jid,
-                                                mensaje_cliente=msg_content,
-                                                phone=tel
-                                            )
-                                        logger.error(f'[DIAG] Respuesta generada: {str(respuesta)[:100]}')
-
-                                        if respuesta:
-                                            # Detectar marcador de imagen planes
-                                            enviar_imagen = False
-                                            texto_limpio = respuesta
-                                            if '[IMAGEN_PLANES]' in respuesta:
-                                                texto_limpio = respuesta.replace('[IMAGEN_PLANES]', '').strip()
-                                                enviar_imagen = True
-                                                logger.info(f'[DIAG] Marcador IMAGEN_PLANES detectado en respuesta')
-                                            
-                                            partes = [p.strip() for p in texto_limpio.split('\n\n') if p.strip()]
-                                            logger.error(f'[DIAG] Partes a enviar: {len(partes)}')
-                                            for i, parte in enumerate(partes):
-                                                logger.error(f'[DIAG] Enviando parte {i+1}/{len(partes)} a {tel}')
-                                                resultado = enviar_whatsapp(tel, parte, jid_override=jid)
-                                                logger.error(f'[DIAG] Resultado envío parte {i+1}: {resultado}')
-                                                time.sleep(random.uniform(2, 4))
-                                            
-                                            # Enviar imagen de planes si el LLM lo solicitó
-                                            if enviar_imagen:
-                                                logger.info(f'[DIAG] Enviando imagen de planes a {tel}')
-                                                enviar_imagen_whatsapp(
-                                                    tel,
-                                                    IMAGEN_PLANES_URL,
-                                                    caption=CAPTION_PLANES
+                                                # Lead virtual (número no contactado, @lid): usar procesar_mensaje_whatsapp
+                                                from leads_admin.prospector_agent import procesar_mensaje_whatsapp
+                                                logger.error(f'[DIAG] Usando procesar_mensaje_whatsapp para lead virtual. lead_id={lead_id}, jid={jid}')
+                                                respuesta = procesar_mensaje_whatsapp(
+                                                    remote_jid=jid,
+                                                    mensaje_cliente=msg_content,
+                                                    phone=tel
                                                 )
-                                        else:
-                                            logger.error(f'[DIAG] procesar_lead devolvió None o vacío')
-                                        return  # éxito
-                                    except Exception as ex:
-                                        logger.error(f'[AGENTE] Intento {attempt+1}/{MAX_RETRIES} fallido: {ex}')
-                                        if attempt < MAX_RETRIES - 1:
-                                            time.sleep(5)
-                                        else:
-                                            logger.error(f'[AGENTE] Agotados reintentos para {tel}')
+                                            logger.error(f'[DIAG] Respuesta generada: {str(respuesta)[:100]}')
+
+                                            if respuesta:
+                                                # Detectar marcador de imagen planes
+                                                enviar_imagen = False
+                                                texto_limpio = respuesta
+                                                if '[IMAGEN_PLANES]' in respuesta:
+                                                    texto_limpio = respuesta.replace('[IMAGEN_PLANES]', '').strip()
+                                                    enviar_imagen = True
+                                                    logger.info(f'[DIAG] Marcador IMAGEN_PLANES detectado en respuesta')
+                                            
+                                                partes = [p.strip() for p in texto_limpio.split('\n\n') if p.strip()]
+                                                logger.error(f'[DIAG] Partes a enviar: {len(partes)}')
+                                                for i, parte in enumerate(partes):
+                                                    logger.error(f'[DIAG] Enviando parte {i+1}/{len(partes)} a {tel}')
+                                                    resultado = enviar_whatsapp(tel, parte, jid_override=jid)
+                                                    logger.error(f'[DIAG] Resultado envío parte {i+1}: {resultado}')
+                                                    time.sleep(random.uniform(2, 4))
+                                            
+                                                # Enviar imagen de planes si el LLM lo solicitó
+                                                if enviar_imagen:
+                                                    logger.info(f'[DIAG] Enviando imagen de planes a {tel}')
+                                                    enviar_imagen_whatsapp(
+                                                        tel,
+                                                        IMAGEN_PLANES_URL,
+                                                        caption=CAPTION_PLANES
+                                                    )
+                                            else:
+                                                logger.error(f'[DIAG] procesar_lead devolvió None o vacío')
+                                            return  # éxito
+                                        except Exception as ex:
+                                            logger.error(f'[AGENTE] Intento {attempt+1}/{MAX_RETRIES} fallido: {ex}')
+                                            if attempt < MAX_RETRIES - 1:
+                                                time.sleep(5)
+                                            else:
+                                                logger.error(f'[AGENTE] Agotados reintentos para {tel}')
                             phone_for_response = real_phone if real_phone else phone
                             # Usar JID resuelto por el microservicio (@c.us) para responder
                             # Esto garantiza que la respuesta llegue al chat correcto
@@ -880,52 +881,39 @@ def obtener_estado_conexion(request):
 
 @user_passes_test(is_superadmin)
 def obtener_chats(request):
-    """Obtiene chats reales de WhatsApp desde el microservicio"""
+    """Obtiene chats de WhatsApp — intenta microservicio, fallback a BD local."""
+    # Intentar primero el microservicio WhatsApp (si el endpoint existe)
     try:
-        headers = {'apikey': API_KEY}
-        response = requests.get(f"{WHATSAPP_SERVICE_URL}/chat/findChats/{INSTANCE_NAME}", headers=headers, timeout=10)
+        headers = {'apikey': API_KEY} if API_KEY else {}
+        response = requests.get(f"{WHATSAPP_SERVICE_URL}/chat/findChats/{INSTANCE_NAME}", headers=headers, timeout=5)
         if response.status_code == 200:
             chats = response.json()
-            # Estructura real: [{id, owner, lastMsgTimestamp?}, ...]
             if not isinstance(chats, list):
                 chats = [chats]
-            
-            # Procesar chats
             processed_chats = []
             for chat in chats:
                 chat_id = chat.get('id', '')
-                # Intentar extraer nombre del ID (si es número de teléfono)
                 name = 'Desconocido'
                 if '@s.whatsapp.net' in chat_id:
-                    # Es número individual
                     name = chat_id.split('@')[0]
                 elif '@lid' in chat_id:
-                    # Es lista de difusión (broadcast list)
                     name = f'Lista {chat_id[:8]}...'
                 elif '@g.us' in chat_id:
-                    # Es grupo
                     name = f'Grupo {chat_id[:8]}...'
-                
                 processed_chats.append({
-                    'id': chat_id,
-                    'name': name,
-                    'unread_count': 0,  # No disponible en este endpoint
-                    'last_message': {},
-                    'timestamp': chat.get('lastMsgTimestamp', 0),
+                    'id': chat_id, 'name': name, 'unread_count': 0,
+                    'last_message': {}, 'timestamp': chat.get('lastMsgTimestamp', 0),
                     'is_group': '@g.us' in chat_id or '@lid' in chat_id
                 })
             return JsonResponse({'chats': processed_chats})
-        else:
-            return JsonResponse({'error': 'No se pudieron obtener chats', 'status': response.status_code}, status=500)
-    except Exception as e:
-        logger.error(f'Error obteniendo chats: {e}')
-        return JsonResponse({'error': str(e)}, status=500)
+    except Exception:
+        pass  # Fallback a BD local
+    
+    # Fallback: usar base de datos local (leads_db)
+    return obtener_chats_local(request)
 
 
 @user_passes_test(is_superadmin)
 def obtener_mensajes(request, chat_id):
-    """Obtiene mensajes de un chat específico"""
-    # NOTA: whatsapp-web.js no expone endpoint claro para mensajes históricos
-    # Los mensajes llegan via webhook y se almacenarán en futura versión
-    logger.info(f'Solicitud de mensajes para chat {chat_id} - endpoint no implementado aún')
-    return JsonResponse({'messages': [], 'note': 'Los mensajes históricos no están disponibles aún. Los mensajes nuevos aparecerán cuando lleguen por WhatsApp.'})
+    """Obtiene mensajes de un chat — fallback a BD local."""
+    return obtener_mensajes_local(request, chat_id)
