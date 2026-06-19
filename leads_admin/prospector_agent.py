@@ -89,6 +89,8 @@ Expresiones colombianas naturales: "parce", "dale", "tranqui", "bien", "¿cómo 
    Ej: "¡Hola! 👋 Soy Juan. Gracias por responder. ¿Tú cómo manejas las citas ahorita, por WhatsApp o llamadas?"
 Si dudas de cuál es: si el lead pregunta por Appo, precios o info → trátalo como inbound (caliente).
 
+Si llega alguien solo saludando, revisa el historial de la conversacion, y si no hay no le ofrescas nada aun primero indaga por que viene.
+
 🎯 CÓMO VENDES (consultivo: primero entender, luego ayudar, después cerrar)
 No es un guión rígido: es una conversación natural por etapas. Lée dónde está el lead y responde a eso.
 El objetivo final SIEMPRE es que pruebe Appo gratis (es lo que más lo beneficia y a ti también).
@@ -947,7 +949,7 @@ def _ya_cruzo_barrera(mensajes: list) -> bool:
             return False
     return False
 
-def procesar_lead_autoreply(lead_id: int, mensaje_entrante: str) -> Optional[str]:
+def procesar_lead_autoreply(lead_id: int, mensaje_entrante: str, msg_id: str = None) -> Optional[str]:
     """Lead REAL respondió con auto-reply de WA Business. Cruza la barrera una vez."""
     from leads_admin.models import Lead, LeadConversacion
     lead = Lead.objects.using('leads_db').get(id=lead_id)
@@ -974,15 +976,17 @@ def procesar_lead_autoreply(lead_id: int, mensaje_entrante: str) -> Optional[str
     conv.save(using='leads_db')
     return respuesta
 
-def procesar_mensaje_whatsapp_autoreply(remote_jid: str, mensaje_cliente: str, phone: str = None) -> Optional[str]:
+def procesar_mensaje_whatsapp_autoreply(remote_jid: str, mensaje_cliente: str, phone: str = None, msg_id: str = None) -> Optional[str]:
     """Lead VIRTUAL (inbound no registrado) respondió con auto-reply. Cruza barrera una vez."""
     from leads_admin.models import ChatWhatsApp, MensajeWhatsApp
     import uuid
     chat, _ = ChatWhatsApp.objects.using('leads_db').get_or_create(
         chat_id=remote_jid, defaults={'phone': phone or '', 'contact_name': ''})
-    MensajeWhatsApp.objects.using('leads_db').create(
-        chat=chat, message_key=f'in_{remote_jid}_{uuid.uuid4().hex[:12]}',
-        message_text=mensaje_cliente, from_me=False, timestamp=timezone.now())
+    # Usar msg_id si está disponible (deterministico desde webhook), fallback a uuid
+    dedup_key = f'in_{msg_id}' if msg_id else f'in_{remote_jid}_{uuid.uuid4().hex[:12]}'
+    MensajeWhatsApp.objects.using('leads_db').get_or_create(
+        chat=chat, message_key=dedup_key,
+        defaults=dict(message_text=mensaje_cliente, from_me=False, timestamp=timezone.now()))
     historial_qs = MensajeWhatsApp.objects.using('leads_db').filter(
         chat__chat_id=remote_jid).order_by('timestamp')[:20]
     historial = [{'role': 'assistant' if m.from_me else 'user',
@@ -997,12 +1001,13 @@ def procesar_mensaje_whatsapp_autoreply(remote_jid: str, mensaje_cliente: str, p
         respuesta = ("Jaja veo que tienen el asistente automático 🙌 Cuando me lea alguien "
                      "del equipo: con Appo sus clientes agendan solos 24/7 y dejan de perder "
                      "citas. ¿Les muestro en 1 minutico cómo funciona?")
-    MensajeWhatsApp.objects.using('leads_db').create(
-        chat=chat, message_key=f'out_{remote_jid}_{uuid.uuid4().hex[:12]}',
-        message_text=respuesta + _AUTOREPLY_MARKER, from_me=True, timestamp=timezone.now())
+    out_key = f'out_{remote_jid}_{uuid.uuid4().hex[:12]}'
+    MensajeWhatsApp.objects.using('leads_db').get_or_create(
+        chat=chat, message_key=out_key,
+        defaults=dict(message_text=respuesta + _AUTOREPLY_MARKER, from_me=True, timestamp=timezone.now()))
     return respuesta
 
-def procesar_mensaje_whatsapp(remote_jid: str, mensaje_cliente: str, phone: str = None) -> str:
+def procesar_mensaje_whatsapp(remote_jid: str, mensaje_cliente: str, phone: str = None, msg_id: str = None) -> str:
     """Procesa un mensaje de WhatsApp para un número no registrado como lead.
     Guarda el historial de conversación en MensajeWhatsApp para mantener contexto."""
     from leads_admin.models import ChatWhatsApp, MensajeWhatsApp
@@ -1014,14 +1019,18 @@ def procesar_mensaje_whatsapp(remote_jid: str, mensaje_cliente: str, phone: str 
         defaults={'phone': phone or '', 'contact_name': ''}
     )
 
-    # Guardar mensaje entrante del lead
+    # Guardar mensaje entrante del lead con key determinística
+    # get_or_create + msg_id evita duplicados si views.py ya guardó este mismo mensaje
     import uuid
-    MensajeWhatsApp.objects.using('leads_db').create(
+    dedup_key = f'in_{msg_id}' if msg_id else f'in_{remote_jid}_{uuid.uuid4().hex[:12]}'
+    MensajeWhatsApp.objects.using('leads_db').get_or_create(
         chat=chat,
-        message_key=f'in_{remote_jid}_{uuid.uuid4().hex[:12]}',
-        message_text=mensaje_cliente,
-        from_me=False,
-        timestamp=timezone.now()
+        message_key=dedup_key,
+        defaults=dict(
+            message_text=mensaje_cliente,
+            from_me=False,
+            timestamp=timezone.now()
+        )
     )
 
     agent = get_prospector_agent()
@@ -1047,27 +1056,50 @@ def procesar_mensaje_whatsapp(remote_jid: str, mensaje_cliente: str, phone: str 
     if respuesta:
         logger.info(f'[PROCESAR_WHATSAPP] Respuesta generada para {remote_jid}: {respuesta[:100]}...')
         # Guardar respuesta saliente en el historial
-        MensajeWhatsApp.objects.using('leads_db').create(
+        out_key = f'out_{remote_jid}_{uuid.uuid4().hex[:12]}'
+        MensajeWhatsApp.objects.using('leads_db').get_or_create(
             chat=chat,
-            message_key=f'out_{remote_jid}_{uuid.uuid4().hex[:12]}',
-            message_text=respuesta,
-            from_me=True,
-            timestamp=timezone.now()
+            message_key=out_key,
+            defaults=dict(message_text=respuesta, from_me=True, timestamp=timezone.now())
         )
         return respuesta
     else:
-        # Lead inbound (suele venir de publicidad, viene caliente): engancha de una.
-        fallback = ("¡Hola! 👋 Soy Juan, qué bueno que escribiste. Con Appo tus clientes "
-                    "agendan solos 24/7 y les llega recordatorio antes de la cita. "
-                    "¿Tienes barbería o peluquería?")
-        logger.warning(f'[PROCESAR_WHATSAPP] Fallback usado para {remote_jid}')
-        # Guardar fallback en el historial también
-        MensajeWhatsApp.objects.using('leads_db').create(
+        # Fallback consciente del historial: no repetir saludo si ya hay conversación previa
+        total_historial = len(historial_mensajes)
+        tiene_historial_previo = total_historial > 2  # ya hubo intercambio (user + assistant + user)
+        primera_vez = total_historial <= 1  # solo este mensaje inbound, sin historial previo
+        
+        if primera_vez:
+            fallback = ("¡Hola! 👋 Soy Juan, qué bueno que escribiste. Con Appo tus clientes "
+                        "agendan solos 24/7 y les llega recordatorio antes de la cita. "
+                        "¿Tienes barbería o peluquería?")
+        elif tiene_historial_previo:
+            # Ya hay conversación — fallback contextual, no reiniciar con saludo
+            ultimo_bot = ""
+            for m in reversed(historial_mensajes):
+                if m.from_me:
+                    ultimo_bot = m.message_text or ""
+                    break
+            if any(w in mensaje_cliente.lower() for w in ['cuanto', 'precio', 'cuesta', 'plan', 'planes']):
+                fallback = "Depende de cuántos barberos tengan. ¿Cuántos son en el negocio? Así te digo el plan que te sirve."
+            elif any(w in mensaje_cliente.lower() for w in ['si', 'dale', 'bien', 'ok', 'claro', 'interesa']):
+                fallback = "Bien 🙌 Con Appo tus clientes agendan solos 24/7, les llega recordatorio antes de la cita y tú ves todo desde el celu. ¿Cómo manejas las citas hoy, por WhatsApp o libreta?"
+            elif any(w in mensaje_cliente.lower() for w in ['de que', 'qué es', 'que ofreces', 'qué tienes', 'cuéntame', 'dime']):
+                fallback = "Appo es una plataforma para barberías y peluquerías. Tus clientes agendan solos 24/7 desde el link de tu negocio, sin llamadas ni WhatsApp. Cada barbero tiene su perfil, los clientes ven horarios disponibles y reservan en segundos. ¿Te sirve algo así?"
+            else:
+                fallback = "Bien 👍 Con Appo tus clientes agendan solos sin escribirte y les llega recordatorio antes de la cita. ¿Cómo lo manejas ahorita?"
+        else:
+            # Solo 1-2 mensajes de historial, probablemente saludo inicial 
+            fallback = ("¡Hola! 👋 Soy Juan, qué bueno que escribiste. Con Appo tus clientes "
+                        "agendan solos 24/7 y les llega recordatorio antes de la cita. "
+                        "¿Tienes barbería o peluquería?")
+
+        logger.warning(f'[PROCESAR_WHATSAPP] Fallback usado para {remote_jid} (historial={total_historial}): {fallback[:50]}...')
+        out_key = f'out_{remote_jid}_{uuid.uuid4().hex[:12]}'
+        MensajeWhatsApp.objects.using('leads_db').get_or_create(
             chat=chat,
-            message_key=f'out_{remote_jid}_{uuid.uuid4().hex[:12]}',
-            message_text=fallback,
-            from_me=True,
-            timestamp=timezone.now()
+            message_key=out_key,
+            defaults=dict(message_text=fallback, from_me=True, timestamp=timezone.now())
         )
         return fallback
 

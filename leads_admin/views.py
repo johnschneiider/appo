@@ -515,8 +515,23 @@ def webhook_crm(request):
                         
                         # Guardar mensaje en base de datos local para historial
                         try:
+                            # ── FIX ANTI-DUPLICADO LID/@c.us ──
+                            # WhatsApp entrega inbound como @lid, pero el bot responde al @c.us
+                            # resuelto → conversaciones partidas. Canonicalizamos el chat al @c.us
+                            # cuando el microservicio ya resolvió el JID. Si ya existe un chat @c.us
+                            # equivalente, se reutiliza; el @lid huérfano no se vuelve a crear.
+                            canonical_jid = remote_jid
+                            if remote_jid.endswith('@lid') and resolved_jid and resolved_jid.endswith('@c.us'):
+                                canonical_jid = resolved_jid
+                            elif remote_jid.endswith('@lid') and real_phone:
+                                _rp = real_phone.replace('+', '').replace(' ', '')
+                                if re_mod.match(r'^57\d{10}$', _rp):
+                                    canonical_jid = _rp + '@c.us'
+                            if canonical_jid != remote_jid:
+                                logger.info(f'[DEDUP] Canonicalizando chat {remote_jid} -> {canonical_jid}')
+
                             chat, _ = ChatWhatsApp.objects.using('leads_db').get_or_create(
-                                chat_id=remote_jid,
+                                chat_id=canonical_jid,
                                 defaults={
                                     'phone': real_phone if real_phone else phone,
                                     'last_message': message_content,
@@ -542,9 +557,14 @@ def webhook_crm(request):
                                     chat.save(using='leads_db')
                                     logger.info(f'[LID] JID real guardado para {remote_jid}: {real_sender_jid}')
                             
-                            # Guardar mensaje
+                            # Guardar mensaje con message_key determinístico
+                            # Usar msg.id.id de WhatsApp (único) para evitar duplicados
+                            # Si el webhook se retry o el mensaje llega por @lid y @c.us,
+                            # el UNIQUE constraint de message_key previene la duplicación.
+                            msg_id = key.get('id', '')
+                            dedup_key = f"in_{msg_id}" if msg_id else f"in_{remote_jid}_{datetime.now().timestamp()}"
                             MensajeWhatsApp.objects.using('leads_db').get_or_create(
-                                message_key=f"{remote_jid}_{datetime.now().timestamp()}",
+                                message_key=dedup_key,
                                 defaults=dict(
                                     chat=chat,
                                     raw_payload=msg,
@@ -617,12 +637,34 @@ def webhook_crm(request):
                                 # (evitar bloquear el webhook - responder 200 inmediatamente)
                                 import threading
                                 _chat_ref = chat
-                                def _responder_async(lead_id, msg_content, tel, chat_obj, jid, es_autoreply=False):
+                                _current_msg_id = key.get('id', '')  # WhatsApp msg ID for dedup
+                                def _responder_async(lead_id, msg_content, tel, chat_obj, jid, es_autoreply=False, wa_msg_id=''):
                                     import time, random
                                     from leads_admin.models import MensajeWhatsApp
-                                    # Thread daemon: cerrar conexiones DB heredadas/obsoletas para evitar
-                                    # 'connection already closed' (psycopg2.InterfaceError) en threads.
                                     from django.db import close_old_connections
+                                    # Cerrar conexiones heredadas del thread padre primero
+                                    close_old_connections()
+                                    # ── DEBOUNCE: esperar 6s para ver si llegan más mensajes rápidos ──
+                                    # Si durante la espera llegó un mensaje más nuevo para el mismo chat,
+                                    # este thread aborta y deja que el último thread procese con todo el contexto.
+                                    time.sleep(6)
+                                    # Reconectar para la consulta de debounce
+                                    close_old_connections()
+                                    try:
+                                        latest_before = MensajeWhatsApp.objects.using('leads_db').filter(
+                                            chat__chat_id=jid, from_me=False
+                                        ).order_by('-id').first()
+                                        if latest_before:
+                                            # Si llegaron mensajes NUEVOS para este chat desde que empezamos
+                                            newer_exists = MensajeWhatsApp.objects.using('leads_db').filter(
+                                                chat__chat_id=jid, from_me=False,
+                                                id__gt=latest_before.id
+                                            ).exists()
+                                            if newer_exists:
+                                                logger.info(f'[DEBOUNCE] Abortando thread {jid}: llegaron mensajes más nuevos durante espera')
+                                                return
+                                    except Exception as debounce_err:
+                                        logger.warning(f'[DEBOUNCE] Error en check: {debounce_err}')
                                     close_old_connections()
                                     
                                     # GUARD: el microservicio whatsapp-web.js SÍ puede enviar a @lid
@@ -646,11 +688,11 @@ def webhook_crm(request):
                                                 # Lead contestó con auto-reply de WA Business → cruzar barrera
                                                 if lead_id > 0:
                                                     from leads_admin.prospector_agent import procesar_lead_autoreply
-                                                    respuesta = procesar_lead_autoreply(lead_id, msg_content)
+                                                    respuesta = procesar_lead_autoreply(lead_id, msg_content, msg_id=wa_msg_id)
                                                 else:
                                                     from leads_admin.prospector_agent import procesar_mensaje_whatsapp_autoreply
                                                     respuesta = procesar_mensaje_whatsapp_autoreply(
-                                                        remote_jid=jid, mensaje_cliente=msg_content, phone=tel)
+                                                        remote_jid=jid, mensaje_cliente=msg_content, phone=tel, msg_id=wa_msg_id)
                                             elif lead_id > 0:
                                                 # Lead real registrado en DB: usar procesar_lead normal
                                                 from leads_admin.prospector_agent import procesar_lead
@@ -663,7 +705,8 @@ def webhook_crm(request):
                                                 respuesta = procesar_mensaje_whatsapp(
                                                     remote_jid=jid,
                                                     mensaje_cliente=msg_content,
-                                                    phone=tel
+                                                    phone=tel,
+                                                    msg_id=wa_msg_id
                                                 )
                                             logger.error(f'[DIAG] Respuesta generada: {str(respuesta)[:100]}')
 
@@ -709,7 +752,7 @@ def webhook_crm(request):
                             if not es_cliente_negocio and not no_contactar:
                                 threading.Thread(
                                     target=_responder_async,
-                                    args=(lead.id, message_content, phone_for_response, _chat_ref, jid_for_response, is_auto_reply),
+                                    args=(lead.id, message_content, phone_for_response, _chat_ref, jid_for_response, is_auto_reply, _current_msg_id),
                                     daemon=True
                                 ).start()
                                 logger.info(f'[WEBHOOK] Thread de respuesta iniciado para {phone_for_response}')
