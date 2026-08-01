@@ -1,30 +1,174 @@
-2026/06/11-10:22:28.384 216315 Reusing MANIFEST /var/www/appo.com.co/whatsapp-service/.wwebjs_auth/whatsapp/session-APPO_CRM/Default/Local Storage/leveldb/MANIFEST-000001
-2026/06/11-10:22:28.394 216315 Recovering log #21
-2026/06/11-10:22:28.394 216315 Reusing old log /var/www/appo.com.co/whatsapp-service/.wwebjs_auth/whatsapp/session-APPO_CRM/Default/Local Storage/leveldb/000021.log 
-2026/06/11-20:13:12.699 216317 Level-0 table #25: started
-2026/06/11-20:13:12.706 216317 Level-0 table #25: 13488 bytes OK
-2026/06/11-20:13:12.708 216317 Delete type=0 #21
-2026/06/12-15:22:24.221 216317 Level-0 table #27: started
-2026/06/12-15:22:24.234 216317 Level-0 table #27: 13980 bytes OK
-2026/06/12-15:22:24.240 216317 Delete type=0 #24
-2026/06/13-02:23:01.750 216317 Level-0 table #29: started
-2026/06/13-02:23:01.763 216317 Level-0 table #29: 12508 bytes OK
-2026/06/13-02:23:01.767 216317 Delete type=0 #26
-2026/06/13-02:23:01.770 216315 Compacting 4@0 + 1@1 files
-2026/06/13-02:23:01.775 216315 Generated table #30@0: 75 keys, 6591 bytes
-2026/06/13-02:23:01.776 216315 Compacted 4@0 + 1@1 files => 6591 bytes
-2026/06/13-02:23:01.777 216315 compacted to: files[ 0 1 1 0 0 0 0 ]
-2026/06/13-02:23:01.778 216315 Delete type=2 #25
-2026/06/13-02:23:01.778 216315 Delete type=2 #19
-2026/06/13-02:23:01.778 216315 Delete type=2 #27
-2026/06/13-02:23:01.778 216315 Delete type=2 #29
-2026/06/13-02:23:01.778 216315 Delete type=2 #22
-2026/06/13-11:22:52.759 216317 Level-0 table #32: started
-2026/06/13-11:22:52.789 216317 Level-0 table #32: 7350 bytes OK
-2026/06/13-11:22:52.794 216317 Delete type=0 #28
-2026/06/13-18:35:46.701 216317 Level-0 table #34: started
-2026/06/13-18:35:46.707 216317 Level-0 table #34: 8268 bytes OK
-2026/06/13-18:35:46.709 216317 Delete type=0 #31
-2026/06/13-23:30:32.981 216317 Level-0 table #36: started
-2026/06/13-23:30:32.986 216317 Level-0 table #36: 9021 bytes OK
-2026/06/13-23:30:32.988 216317 Delete type=0 #33
+2026/07/07-10:34:31.620 615 Reusing MANIFEST /var/www/appo.com.co/whatsapp-service/.wwebjs_auth/whatsapp/session-APPO_CRM/Default/Local Storage/leveldb/MANIFEST-000001
+2026/07/07-10:34:31.693 615 Recovering log #105
+2026/07/07-10:34:31.702 615 Reusing old log /var/www/appo.com.co/whatsapp-service/.wwebjs_auth/whatsapp/session-APPO_CRM/Default/Local Storage/leveldb/000105.log 
+2026/07/07-16:35:01.824 615 Level-0 table #109: started
+2026/07/07-16:35:01.850 615 Level-0 table #109: 15711 bytes OK
+2026/07/07-16:35:01.857 615 Delete type=0 #105
+2026/07/08-06:05:43.585 615 Level-0 table #111: started
+2026/07/08-06:05:43.595 615 Level-0 table #111: 13417 bytes OK
+2026/07/08-06:05:43.607 615 Delete type=0 #108
+2026/07/08-06:05:43.612 617 Compacting 4@0 + 1@1 files
+2026/07/08-06:05:43.620 617 Generated table #112@0: 90 keys, 6589 bytes
+2026/07/08-06:05:43.620 617 Compacted 4@0 + 1@1 files => 6589 bytes
+2026/07/08-06:05:43.621 617 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/08-06:05:43.622 617 Delete type=2 #109
+2026/07/08-06:05:43.622 617 Delete type=2 #106
+2026/07/08-06:05:43.622 617 Delete type=2 #102
+2026/07/08-06:05:43.622 617 Delete type=2 #104
+2026/07/08-06:05:43.622 617 Delete type=2 #111
+2026/07/08-22:36:29.934 617 Level-0 table #114: started
+2026/07/08-22:36:29.945 617 Level-0 table #114: 13179 bytes OK
+2026/07/08-22:36:29.949 617 Delete type=0 #110
+2026/07/09-16:27:27.129 615 Level-0 table #116: started
+2026/07/09-16:27:27.137 615 Level-0 table #116: 12840 bytes OK
+2026/07/09-16:27:27.145 615 Delete type=0 #113
+2026/07/10-00:47:55.241 615 Level-0 table #118: started
+2026/07/10-00:47:55.249 615 Level-0 table #118: 14288 bytes OK
+2026/07/10-00:47:55.252 615 Delete type=0 #115
+2026/07/10-19:38:59.407 615 Level-0 table #120: started
+2026/07/10-19:38:59.418 615 Level-0 table #120: 13017 bytes OK
+2026/07/10-19:38:59.423 615 Delete type=0 #117
+2026/07/10-19:38:59.425 617 Compacting 4@0 + 1@1 files
+2026/07/10-19:38:59.436 617 Generated table #121@0: 93 keys, 6828 bytes
+2026/07/10-19:38:59.436 617 Compacted 4@0 + 1@1 files => 6828 bytes
+2026/07/10-19:38:59.438 617 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/10-19:38:59.439 617 Delete type=2 #112
+2026/07/10-19:38:59.440 617 Delete type=2 #118
+2026/07/10-19:38:59.440 617 Delete type=2 #120
+2026/07/10-19:38:59.440 617 Delete type=2 #114
+2026/07/10-19:38:59.440 617 Delete type=2 #116
+2026/07/12-05:20:47.872 615 Level-0 table #123: started
+2026/07/12-05:20:48.003 615 Level-0 table #123: 11708 bytes OK
+2026/07/12-05:20:48.018 615 Delete type=0 #119
+2026/07/13-12:02:16.905 615 Level-0 table #125: started
+2026/07/13-12:02:17.007 615 Level-0 table #125: 11214 bytes OK
+2026/07/13-12:02:17.023 615 Delete type=0 #122
+2026/07/13-22:32:47.588 615 Level-0 table #127: started
+2026/07/13-22:32:47.659 615 Level-0 table #127: 12784 bytes OK
+2026/07/13-22:32:47.673 615 Delete type=0 #124
+2026/07/14-09:33:18.797 615 Level-0 table #129: started
+2026/07/14-09:33:18.822 615 Level-0 table #129: 12555 bytes OK
+2026/07/14-09:33:18.827 615 Delete type=0 #126
+2026/07/14-09:33:18.830 617 Compacting 4@0 + 1@1 files
+2026/07/14-09:33:18.844 617 Generated table #130@0: 94 keys, 6865 bytes
+2026/07/14-09:33:18.847 617 Compacted 4@0 + 1@1 files => 6865 bytes
+2026/07/14-09:33:18.849 617 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/14-09:33:18.849 617 Delete type=2 #129
+2026/07/14-09:33:18.849 617 Delete type=2 #123
+2026/07/14-09:33:18.849 617 Delete type=2 #127
+2026/07/14-09:33:18.849 617 Delete type=2 #125
+2026/07/14-09:33:18.849 617 Delete type=2 #121
+2026/07/14-23:33:58.543 617 Level-0 table #132: started
+2026/07/14-23:33:58.616 617 Level-0 table #132: 12961 bytes OK
+2026/07/14-23:33:58.624 617 Delete type=0 #128
+2026/07/15-21:52:40.953 615 Level-0 table #134: started
+2026/07/15-21:52:40.969 615 Level-0 table #134: 12113 bytes OK
+2026/07/15-21:52:40.974 615 Delete type=0 #131
+2026/07/16-16:55:58.483 615 Level-0 table #136: started
+2026/07/16-16:55:58.491 615 Level-0 table #136: 12930 bytes OK
+2026/07/16-16:55:58.495 615 Delete type=0 #133
+2026/07/17-00:16:19.447 617 Level-0 table #138: started
+2026/07/17-00:16:19.475 617 Level-0 table #138: 14257 bytes OK
+2026/07/17-00:16:19.485 617 Delete type=0 #135
+2026/07/17-00:16:19.489 615 Compacting 4@0 + 1@1 files
+2026/07/17-00:16:19.500 615 Generated table #139@0: 94 keys, 6840 bytes
+2026/07/17-00:16:19.501 615 Compacted 4@0 + 1@1 files => 6840 bytes
+2026/07/17-00:16:19.502 615 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/17-00:16:19.502 615 Delete type=2 #132
+2026/07/17-00:16:19.502 615 Delete type=2 #136
+2026/07/17-00:16:19.502 615 Delete type=2 #138
+2026/07/17-00:16:19.502 615 Delete type=2 #130
+2026/07/17-00:16:19.502 615 Delete type=2 #134
+2026/07/17-20:17:19.151 615 Level-0 table #141: started
+2026/07/17-20:17:19.169 615 Level-0 table #141: 12802 bytes OK
+2026/07/17-20:17:19.172 615 Delete type=0 #137
+2026/07/18-22:18:25.163 617 Level-0 table #143: started
+2026/07/18-22:18:25.230 617 Level-0 table #143: 12741 bytes OK
+2026/07/18-22:18:25.245 617 Delete type=0 #140
+2026/07/20-04:40:00.927 615 Level-0 table #145: started
+2026/07/20-04:40:01.050 615 Level-0 table #145: 12918 bytes OK
+2026/07/20-04:40:01.082 615 Delete type=0 #142
+2026/07/20-21:40:53.744 617 Level-0 table #147: started
+2026/07/20-21:40:53.756 617 Level-0 table #147: 16235 bytes OK
+2026/07/20-21:40:53.761 617 Delete type=0 #144
+2026/07/20-21:40:53.764 615 Compacting 4@0 + 1@1 files
+2026/07/20-21:40:53.771 615 Generated table #148@0: 95 keys, 6737 bytes
+2026/07/20-21:40:53.771 615 Compacted 4@0 + 1@1 files => 6737 bytes
+2026/07/20-21:40:53.773 615 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/20-21:40:53.774 615 Delete type=2 #143
+2026/07/20-21:40:53.774 615 Delete type=2 #145
+2026/07/20-21:40:53.774 615 Delete type=2 #147
+2026/07/20-21:40:53.774 615 Delete type=2 #139
+2026/07/20-21:40:53.774 615 Delete type=2 #141
+2026/07/21-21:01:57.148 615 Level-0 table #150: started
+2026/07/21-21:01:57.218 615 Level-0 table #150: 13022 bytes OK
+2026/07/21-21:01:57.230 615 Delete type=0 #146
+2026/07/22-14:22:34.797 615 Level-0 table #152: started
+2026/07/22-14:22:34.874 615 Level-0 table #152: 12442 bytes OK
+2026/07/22-14:22:34.888 615 Delete type=0 #149
+2026/07/23-16:24:00.461 615 Level-0 table #154: started
+2026/07/23-16:24:00.511 615 Level-0 table #154: 11837 bytes OK
+2026/07/23-16:24:00.531 615 Delete type=0 #151
+2026/07/24-13:54:59.606 615 Level-0 table #156: started
+2026/07/24-13:54:59.621 615 Level-0 table #156: 12966 bytes OK
+2026/07/24-13:54:59.627 615 Delete type=0 #153
+2026/07/24-13:54:59.632 617 Compacting 4@0 + 1@1 files
+2026/07/24-13:54:59.641 617 Generated table #157@0: 95 keys, 6855 bytes
+2026/07/24-13:54:59.642 617 Compacted 4@0 + 1@1 files => 6855 bytes
+2026/07/24-13:54:59.643 617 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/24-13:54:59.644 617 Delete type=2 #156
+2026/07/24-13:54:59.644 617 Delete type=2 #148
+2026/07/24-13:54:59.644 617 Delete type=2 #152
+2026/07/24-13:54:59.644 617 Delete type=2 #150
+2026/07/24-13:54:59.644 617 Delete type=2 #154
+2026/07/25-01:15:35.067 617 Level-0 table #159: started
+2026/07/25-01:15:35.079 617 Level-0 table #159: 12741 bytes OK
+2026/07/25-01:15:35.083 617 Delete type=0 #155
+2026/07/25-21:36:42.829 617 Level-0 table #161: started
+2026/07/25-21:36:42.862 617 Level-0 table #161: 11971 bytes OK
+2026/07/25-21:36:42.874 617 Delete type=0 #158
+2026/07/26-16:57:45.578 615 Level-0 table #163: started
+2026/07/26-16:57:45.586 615 Level-0 table #163: 11734 bytes OK
+2026/07/26-16:57:45.589 615 Delete type=0 #160
+2026/07/27-11:18:38.234 615 Level-0 table #165: started
+2026/07/27-11:18:38.243 615 Level-0 table #165: 12813 bytes OK
+2026/07/27-11:18:38.247 615 Delete type=0 #162
+2026/07/27-11:18:38.251 617 Compacting 4@0 + 1@1 files
+2026/07/27-11:18:38.256 617 Generated table #166@0: 95 keys, 6889 bytes
+2026/07/27-11:18:38.257 617 Compacted 4@0 + 1@1 files => 6889 bytes
+2026/07/27-11:18:38.258 617 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/27-11:18:38.259 617 Delete type=2 #161
+2026/07/27-11:18:38.259 617 Delete type=2 #157
+2026/07/27-11:18:38.259 617 Delete type=2 #165
+2026/07/27-11:18:38.259 617 Delete type=2 #159
+2026/07/27-11:18:38.259 617 Delete type=2 #163
+2026/07/28-03:29:29.851 615 Level-0 table #168: started
+2026/07/28-03:29:29.871 615 Level-0 table #168: 12357 bytes OK
+2026/07/28-03:29:29.876 615 Delete type=0 #164
+2026/07/28-23:40:32.039 615 Level-0 table #170: started
+2026/07/28-23:40:32.058 615 Level-0 table #170: 11753 bytes OK
+2026/07/28-23:40:32.062 615 Delete type=0 #167
+2026/07/29-18:11:28.231 615 Level-0 table #172: started
+2026/07/29-18:11:28.244 615 Level-0 table #172: 12960 bytes OK
+2026/07/29-18:11:28.251 615 Delete type=0 #169
+2026/07/30-13:12:25.975 615 Level-0 table #174: started
+2026/07/30-13:12:25.986 615 Level-0 table #174: 12995 bytes OK
+2026/07/30-13:12:25.990 615 Delete type=0 #171
+2026/07/30-13:12:25.996 617 Compacting 4@0 + 1@1 files
+2026/07/30-13:12:26.015 617 Generated table #175@0: 96 keys, 6925 bytes
+2026/07/30-13:12:26.016 617 Compacted 4@0 + 1@1 files => 6925 bytes
+2026/07/30-13:12:26.017 617 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/30-13:12:26.018 617 Delete type=2 #172
+2026/07/30-13:12:26.018 617 Delete type=2 #174
+2026/07/30-13:12:26.018 617 Delete type=2 #166
+2026/07/30-13:12:26.018 617 Delete type=2 #170
+2026/07/30-13:12:26.018 617 Delete type=2 #168
+2026/07/30-21:32:55.917 617 Level-0 table #177: started
+2026/07/30-21:32:55.927 617 Level-0 table #177: 13165 bytes OK
+2026/07/30-21:32:55.930 617 Delete type=0 #173
+2026/07/31-17:23:53.796 615 Level-0 table #179: started
+2026/07/31-17:23:53.806 615 Level-0 table #179: 11786 bytes OK
+2026/07/31-17:23:53.809 615 Delete type=0 #176
+2026/08/01-05:24:28.630 615 Level-0 table #181: started
+2026/08/01-05:24:28.647 615 Level-0 table #181: 13938 bytes OK
+2026/08/01-05:24:28.658 615 Delete type=0 #178

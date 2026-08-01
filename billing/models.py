@@ -11,10 +11,12 @@ class SaaSSubscription(models.Model):
     PLAN_CHOICES = [
         ('gratuito', 'Capa Gratuita'),
         ('pro', 'Plan Pro'),
+        ('empresarial', 'Plan Empresarial'),
     ]
     STATUS_CHOICES = [
         ('active', 'Activa'),
         ('trial', 'Trial 30 días'),
+        ('trial_7d', 'Trial 7 días (Bot)'),
         ('expiring_soon', 'Por vencer'),
         ('expired', 'Vencida — Capa Gratuita'),
         ('suspended', 'Suspendida'),
@@ -22,8 +24,9 @@ class SaaSSubscription(models.Model):
     PLAN_AMOUNTS = {
         'gratuito': 0,
         'pro': 49000,  # por barbero
+        'empresarial': 79000,  # por barbero
     }
-    PLAN_LEVELS = {'gratuito': 0, 'pro': 1}
+    PLAN_LEVELS = {'gratuito': 0, 'pro': 1, 'empresarial': 2}
 
     negocio = models.OneToOneField(
         'negocios.Negocio',
@@ -70,7 +73,7 @@ class SaaSSubscription(models.Model):
 
     @property
     def is_active(self):
-        return self.status in ('active', 'trial')
+        return self.status in ('active', 'trial', 'trial_7d')
 
     def update_status(self):
         """Actualiza el estado según fechas. Si expiró, degrada a Capa Gratuita."""
@@ -89,7 +92,7 @@ class SaaSSubscription(models.Model):
             if self.status != 'expiring_soon':
                 self.status = 'expiring_soon'
                 self.save(update_fields=['status'])
-        elif self.status not in ('active', 'trial'):
+        elif self.status not in ('active', 'trial', 'trial_7d'):
             self.status = 'active'
             self.save(update_fields=['status'])
 
@@ -119,15 +122,19 @@ class SaaSSubscription(models.Model):
             'feature_soporte_vip', 'feature_backup',
         ])
 
-    def activate_trial(self):
-        """Activa trial de 30 días para Plan Pro."""
+    def activate_trial(self, days=30):
+        """Activa trial para Plan Pro. Por defecto 30 días, acepta 7 días."""
         self.plan = 'pro'
-        self.status = 'trial'
-        self.amount_cop = PLAN_AMOUNTS['pro'] * self.numero_barberos
+        self.status = 'trial_7d' if days <= 7 else 'trial'
+        self.amount_cop = self.PLAN_AMOUNTS['pro'] * self.numero_barberos
         self.starts_at = timezone.now().date()
-        self.expires_at = self.starts_at + timezone.timedelta(days=30)
+        self.expires_at = self.starts_at + timezone.timedelta(days=days)
         self.save()
         self._generate_bold_link()
+
+    def activate_bot_trial(self):
+        """Activa trial de 7 días del Bot WhatsApp (Plan Pro)."""
+        self.activate_trial(days=7)
 
     def confirm_payment(self, amount, confirmed_by=None, notes=''):
         """Registra un pago manual y extiende la suscripción 30 días."""

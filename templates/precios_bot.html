@@ -1,0 +1,554 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Planes y Precios — Appo Bot para Barberías{% endblock %}
+{% block description %}Appo Bot: el asistente WhatsApp que gestiona reservas, recordatorios y trae clientes de vuelta. Planes desde gratis.{% endblock %}
+
+{% block content %}
+<style>
+  :root {
+    --primary: #133A7F;
+    --primary-light: #1E5BC6;
+    --accent: #16a34a;
+    --bg: #F4F3F1;
+    --card-bg: #fff;
+    --text: #0d1b2a;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+  }
+
+  .pricing-hero {
+    text-align: center;
+    padding: 60px 20px 20px;
+  }
+  .pricing-hero .badge-pill {
+    display: inline-block;
+    background: rgba(19,58,127,0.08);
+    color: #133A7F;
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 6px 16px;
+    border-radius: 100px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(19,58,127,0.12);
+  }
+  .pricing-hero h1 {
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 800;
+    color: #0d1b2a;
+    margin-bottom: 12px;
+    line-height: 1.15;
+  }
+  .pricing-hero h1 span { color: #133A7F; }
+  .pricing-hero .subtitle {
+    font-size: 1.1rem;
+    color: #64748b;
+    max-width: 600px;
+    margin: 0 auto 8px;
+  }
+  .pricing-hero .trial-banner {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+    border-radius: 12px;
+    padding: 10px 24px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-top: 16px;
+  }
+
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    max-width: 1100px;
+    margin: 40px auto 60px;
+    padding: 0 20px;
+  }
+
+  .plan-card {
+    background: #fff;
+    border-radius: 20px;
+    border: 1.5px solid #e2e8f0;
+    overflow: hidden;
+    transition: all 0.25s;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .plan-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 48px rgba(19,58,127,0.12);
+  }
+  .plan-card.featured {
+    border-color: #133A7F;
+    box-shadow: 0 12px 40px rgba(19,58,127,0.18);
+  }
+  .plan-card.featured::before {
+    content: 'MÁS POPULAR';
+    position: absolute;
+    top: 14px;
+    right: -30px;
+    background: #133A7F;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 5px 40px;
+    transform: rotate(45deg);
+    letter-spacing: 0.5px;
+  }
+
+  .plan-header {
+    padding: 28px 28px 16px;
+    text-align: center;
+  }
+  .plan-icon {
+    font-size: 2rem;
+    margin-bottom: 12px;
+  }
+  .plan-name {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #0d1b2a;
+    margin-bottom: 4px;
+  }
+  .plan-desc {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-bottom: 16px;
+  }
+  .plan-price {
+    font-size: 2.6rem;
+    font-weight: 800;
+    color: #133A7F;
+    line-height: 1;
+  }
+  .plan-price sub {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #64748b;
+  }
+  .plan-price-note {
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-top: 4px;
+  }
+
+  .plan-body {
+    padding: 10px 28px 28px;
+    flex: 1;
+  }
+  .plan-features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .plan-features li {
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.9rem;
+    color: #334155;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .plan-features li:last-child { border-bottom: none; }
+  .plan-features .check { color: #16a34a; font-weight: 700; flex-shrink: 0; }
+  .plan-features .cross { color: #cbd5e1; flex-shrink: 0; }
+  .plan-features .feature-highlight {
+    background: #fef3c7;
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: #92400e;
+    margin-left: 4px;
+  }
+
+  .plan-footer {
+    padding: 0 28px 28px;
+  }
+  .btn-plan {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1rem;
+    text-align: center;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-plan-primary {
+    background: linear-gradient(135deg, #133A7F 0%, #1E5BC6 100%);
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(19,58,127,0.25);
+  }
+  .btn-plan-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(19,58,127,0.35);
+    color: #fff;
+  }
+  .btn-plan-outline {
+    border: 2px solid #133A7F;
+    color: #133A7F;
+    background: #fff;
+  }
+  .btn-plan-outline:hover {
+    background: #EBF1FF;
+  }
+  .btn-plan-ghost {
+    color: #64748b;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+  }
+  .btn-plan-ghost:hover {
+    background: #f1f5f9;
+  }
+
+  .payment-methods {
+    text-align: center;
+    padding: 10px 20px 40px;
+    color: #64748b;
+    font-size: 0.85rem;
+  }
+  .payment-methods .methods {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .payment-methods .method-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+  }
+
+  .social-proof {
+    max-width: 800px;
+    margin: 0 auto 60px;
+    padding: 0 20px;
+  }
+  .social-proof h3 {
+    text-align: center;
+    font-weight: 700;
+    color: #0d1b2a;
+    margin-bottom: 24px;
+  }
+  .stats-row {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+    text-align: center;
+  }
+  .stat-item .stat-number {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #133A7F;
+    display: block;
+  }
+  .stat-item .stat-label {
+    font-size: 0.85rem;
+    color: #64748b;
+  }
+
+  .faq-section {
+    max-width: 700px;
+    margin: 0 auto 60px;
+    padding: 0 20px;
+  }
+  .faq-section h3 {
+    text-align: center;
+    font-weight: 700;
+    margin-bottom: 30px;
+    color: #0d1b2a;
+  }
+  .faq-item {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .faq-question {
+    padding: 16px 20px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #1e293b;
+    user-select: none;
+  }
+  .faq-question:hover { background: #f8fafc; }
+  .faq-answer {
+    padding: 0 20px 16px;
+    color: #475569;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    display: none;
+  }
+  .faq-item.open .faq-answer { display: block; }
+  .faq-item.open .faq-chevron { transform: rotate(180deg); }
+
+  .cta-banner {
+    background: linear-gradient(135deg, #133A7F 0%, #1a4da0 100%);
+    color: #fff;
+    text-align: center;
+    padding: 48px 24px;
+    border-radius: 20px;
+    max-width: 900px;
+    margin: 0 auto 60px;
+  }
+  .cta-banner h2 {
+    font-weight: 800;
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+  }
+  .cta-banner p {
+    font-size: 1rem;
+    opacity: 0.9;
+    margin-bottom: 24px;
+  }
+  .cta-banner .btn-white {
+    display: inline-block;
+    background: #fff;
+    color: #133A7F;
+    font-weight: 700;
+    font-size: 1.05rem;
+    padding: 14px 36px;
+    border-radius: 12px;
+    text-decoration: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    transition: transform 0.2s;
+  }
+  .cta-banner .btn-white:hover {
+    transform: translateY(-2px);
+  }
+
+  @media (max-width: 768px) {
+    .pricing-grid {
+      grid-template-columns: 1fr;
+      max-width: 420px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+  }
+</style>
+
+<div class="pricing-hero">
+  <span class="badge-pill">🤖 Bot WhatsApp + Appo</span>
+  <h1>Tu barbería en <span>piloto automático</span></h1>
+  <p class="subtitle">
+    El bot de WhatsApp que agenda, recuerda y recupera clientes — mientras tú cortas.
+  </p>
+  <div class="trial-banner">
+    🎁 <strong>7 días gratis</strong> · Sin tarjeta · Cancela cuando quieras
+  </div>
+</div>
+
+<div class="pricing-grid">
+
+  <!-- PLAN BÁSICO -->
+  <div class="plan-card">
+    <div class="plan-header">
+      <div class="plan-icon">🧰</div>
+      <div class="plan-name">Básico</div>
+      <div class="plan-desc">Agenda online simple</div>
+      <div class="plan-price">$0<sub>/mes</sub></div>
+      <div class="plan-price-note">Para siempre gratis</div>
+    </div>
+    <div class="plan-body">
+      <ul class="plan-features">
+        <li><span class="check">✓</span> Link público de reservas 24/7</li>
+        <li><span class="check">✓</span> Agenda y calendario básico</li>
+        <li><span class="check">✓</span> Hasta 3 barberos</li>
+        <li><span class="check">✓</span> Servicios y precios configurables</li>
+        <li><span class="cross">✗</span> Recordatorios por WhatsApp</li>
+        <li><span class="cross">✗</span> Win-back de clientes inactivos</li>
+        <li><span class="cross">✗</span> Bloqueo de inasistentes</li>
+        <li><span class="cross">✗</span> Comisiones automáticas</li>
+        <li><span class="cross">✗</span> Bot conversacional 24/7</li>
+      </ul>
+    </div>
+    <div class="plan-footer">
+      <a href="{% url 'cuentas:registro_unificado' %}?tipo=negocio" class="btn-plan btn-plan-ghost">
+        Empezar gratis
+      </a>
+    </div>
+  </div>
+
+  <!-- PLAN PRO — FEATURED -->
+  <div class="plan-card featured">
+    <div class="plan-header">
+      <div class="plan-icon">🚀</div>
+      <div class="plan-name">Pro</div>
+      <div class="plan-desc">Bot completo + IA</div>
+      <div class="plan-price">$49.000<sub>/mes</sub></div>
+      <div class="plan-price-note">Por barbero · 7 días gratis</div>
+    </div>
+    <div class="plan-body">
+      <ul class="plan-features">
+        <li><span class="check">✓</span> <strong>Todo lo del Básico</strong></li>
+        <li><span class="check">✓</span> <strong>Bot WhatsApp 24/7</strong> <span class="feature-highlight">NUEVO</span></li>
+        <li><span class="check">✓</span> Reservas automáticas por chat</li>
+        <li><span class="check">✓</span> Recordatorios 1 día + 3h antes</li>
+        <li><span class="check">✓</span> Win-back de inactivos (30-60-90 días)</li>
+        <li><span class="check">✓</span> Bloqueo de clientes incumplidos</li>
+        <li><span class="check">✓</span> Comisiones automáticas por barbero</li>
+        <li><span class="check">✓</span> Estadísticas diarias y reportes</li>
+        <li><span class="check">✓</span> Barbero ilimitados</li>
+      </ul>
+    </div>
+    <div class="plan-footer">
+      <a href="{% url 'cuentas:pricing_page' %}" class="btn-plan btn-plan-primary">
+        Probar 7 días gratis →
+      </a>
+    </div>
+  </div>
+
+  <!-- PLAN EMPRESARIAL -->
+  <div class="plan-card">
+    <div class="plan-header">
+      <div class="plan-icon">🏢</div>
+      <div class="plan-name">Empresarial</div>
+      <div class="plan-desc">Multi-sucursal + Marketing</div>
+      <div class="plan-price">$79.000<sub>/mes</sub></div>
+      <div class="plan-price-note">Por barbero · Demo personalizada</div>
+    </div>
+    <div class="plan-body">
+      <ul class="plan-features">
+        <li><span class="check">✓</span> <strong>Todo lo del Pro</strong></li>
+        <li><span class="check">✓</span> <strong>Múltiples sucursales</strong> <span class="feature-highlight">NUEVO</span></li>
+        <li><span class="check">✓</span> Panel unificado de todas las sedes</li>
+        <li><span class="check">✓</span> Campañas de marketing por WhatsApp</li>
+        <li><span class="check">✓</span> Reportes comparativos entre sucursales</li>
+        <li><span class="check">✓</span> Prioridad en soporte (respuesta &lt;1h)</li>
+        <li><span class="check">✓</span> Onboarding personalizado</li>
+        <li><span class="check">✓</span> API para integración con tu sistema</li>
+        <li><span class="check">✓</span> SLA 99.9% uptime</li>
+      </ul>
+    </div>
+    <div class="plan-footer">
+      <a href="https://wa.me/573000000000?text=Hola%20Appo%2C%20quiero%20info%20del%20Plan%20Empresarial" target="_blank" class="btn-plan btn-plan-outline">
+        Hablar con ventas →
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<div class="payment-methods">
+  <p style="margin-bottom:4px;">Aceptamos todos los medios de pago</p>
+  <div class="methods">
+    <span class="method-badge">🏦 PSE</span>
+    <span class="method-badge">📱 Nequi</span>
+    <span class="method-badge">💳 Tarjetas</span>
+    <span class="method-badge">🏧 Bancolombia</span>
+    <span class="method-badge">⚡ Bold</span>
+  </div>
+</div>
+
+<!-- Social Proof -->
+<div class="social-proof">
+  <h3>Barberías que ya usan Appo</h3>
+  <div class="stats-row">
+    <div class="stat-item">
+      <span class="stat-number">1,086</span>
+      <span class="stat-label">Leads registrados</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number">24/7</span>
+      <span class="stat-label">Reservas automáticas</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number">-40%</span>
+      <span class="stat-label">No-shows en promedio</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number">🇨🇴</span>
+      <span class="stat-label">Hecho en Colombia</span>
+    </div>
+  </div>
+</div>
+
+<!-- FAQ -->
+<div class="faq-section">
+  <h3>Preguntas frecuentes</h3>
+
+  <div class="faq-item">
+    <div class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+      ¿Cómo funciona el trial de 7 días?
+      <span class="faq-chevron">▾</span>
+    </div>
+    <div class="faq-answer">
+      Te registras, activas el Plan Pro, y tienes 7 días con todas las funciones premium sin pagar nada. No pedimos tarjeta. El día 7 te avisamos y decides si pagas o vuelves al plan Básico gratis. Sin permanencia, sin letra pequeña.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+      ¿Cómo funciona el bot de WhatsApp?
+      <span class="faq-chevron">▾</span>
+    </div>
+    <div class="faq-answer">
+      Tus clientes escriben a tu número de WhatsApp y el bot les responde al instante. Pueden agendar, cancelar o reagendar citas sin que tú intervengas. También manda recordatorios automáticos 1 día antes y 3 horas antes de cada cita. Y si un cliente lleva tiempo sin ir, le escribe para que vuelva (win-back).
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+      ¿Necesito un número nuevo de WhatsApp?
+      <span class="faq-chevron">▾</span>
+    </div>
+    <div class="faq-answer">
+      No. Appo funciona como un asistente conectado a tu WhatsApp Business existente. Tus clientes escriben a tu mismo número de siempre. Si no tienes WhatsApp Business, te ayudamos a configurarlo en 10 minutos.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+      ¿Puedo cancelar en cualquier momento?
+      <span class="faq-chevron">▾</span>
+    </div>
+    <div class="faq-answer">
+      Sí. Sin permanencia, sin penalización. Si cancelas, vuelves al plan Básico gratis y conservas todos tus datos y reservas. Puedes reactivar cuando quieras.
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+      ¿Cómo se paga?
+      <span class="faq-chevron">▾</span>
+    </div>
+    <div class="faq-answer">
+      Aceptamos PSE, Nequi, tarjetas de crédito/débito y transferencia Bancolombia. El pago es mensual y recibes factura electrónica. Todo se gestiona desde tu panel de Appo.
+    </div>
+  </div>
+</div>
+
+<!-- CTA Final -->
+<div class="cta-banner">
+  <h2>¿Listo para poner tu barbería en piloto automático?</h2>
+  <p>7 días gratis. Sin tarjeta. Sin permanencia.</p>
+  <a href="{% url 'cuentas:pricing_page' %}" class="btn-white">
+    🚀 Activar mi prueba gratis →
+  </a>
+</div>
+
+{% endblock %}

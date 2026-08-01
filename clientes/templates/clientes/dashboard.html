@@ -499,7 +499,7 @@
           {% if ultimas_reservas %}
           <div class="d-flex flex-column flex-sm-row gap-2">
           {% for r in ultimas_reservas %}
-            <a href="{% url 'clientes:reservar' r.peluquero.id %}" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-2">
+            <a href="{% url 'clientes:reservar_turno' peluquero_id=r.peluquero.id %}" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-2">
               <i class="bi bi-shop"></i> {{ r.peluquero.nombre }}
               <small class="text-muted">{{ r.fecha|date:"d/m" }}</small>
             </a>

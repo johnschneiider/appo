@@ -1411,6 +1411,20 @@ def pricing_page(request):
     return render(request, "precios.html", _pricing_context())
 
 
+@require_http_methods(["GET"])
+def pricing_bot(request):
+    """
+    Página B2B de precios del Bot WhatsApp para barberías.
+    Planes: Básico ($0), Pro ($49.000/barbero/mes), Empresarial ($79.000/barbero/mes).
+    """
+    ctx = {
+        "precio_mensual": 49000,
+        "moneda": "COP",
+        "dias_trial": 7,
+    }
+    return render(request, "precios_bot.html", ctx)
+
+
 @require_http_methods(["POST"])
 @csrf_protect
 def crear_trial_payu(request):
